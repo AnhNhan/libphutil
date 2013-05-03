@@ -1,0 +1,30 @@
+{
+    "name": "facebook/libphutil",
+    "description": "libphutil is a collection of utility classes and functions for PHP.",
+    "homepage": "http://github.com/facebook/libphutil",
+    "license": "Apache-2.0",
+    "type": "library",
+    "keywords": ["event", "utf8", "database", "daemon", "remarkup", "xsprintf", "utility"],
+    "authors": [
+        {
+            "name": "Evan Priestley",
+            "email": "evan@epriestley.com"
+        }
+    ],
+    "support": {
+        "issues": "https://secure.phabricator.com/maniphest/"
+    },
+    "require": {
+        "php": ">=5.2.17"
+    },
+    "suggest": {
+        "ext-mysqli": "To utilize the mighty power of the Aphront web stack",
+        "ext-pcntl": "To make use of phutil daemons",
+        "ext-mbstring": "Faster and more powerful UTF-8"
+    },
+    "autoload": {
+        "files": [
+            "src/__phutil_library_init__.php"
+        ]
+    }
+}
