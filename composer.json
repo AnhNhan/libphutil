@@ -7,15 +7,14 @@
     "keywords": ["event", "utf8", "database", "daemon", "remarkup", "xsprintf", "utility"],
     "authors": [
         {
-            "name": "Evan Priestley",
-            "email": "evan@epriestley.com"
+            "name": "Evan Priestley"
         }
     ],
     "support": {
         "issues": "https://secure.phabricator.com/maniphest/"
     },
     "require": {
-        "php": ">=5.2.17"
+        "php": ">=5.3"
     },
     "suggest": {
         "ext-mysqli": "To utilize the mighty power of the Aphront web stack",
