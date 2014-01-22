@@ -331,8 +331,8 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
     $this->assertEqual(
       'b',
       last_key(array('a' => 0, 'b' => 1)));
-    $this->assertEqual(NULL, head_key(array()));
-    $this->assertEqual(NULL, last_key(array()));
+    $this->assertEqual(null, head_key(array()));
+    $this->assertEqual(null, last_key(array()));
   }
 
   public function testID() {
@@ -441,6 +441,24 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
         implode('', array_interleave($x, $y)),
         implode($x, $y));
     }
+  }
+
+  public function testLoggableString() {
+    $this->assertEqual(
+      "",
+      phutil_loggable_string(""));
+
+    $this->assertEqual(
+      "a\\nb",
+      phutil_loggable_string("a\nb"));
+
+    $this->assertEqual(
+      "a\\x01b",
+      phutil_loggable_string("a\x01b"));
+
+    $this->assertEqual(
+      "a\\x1Fb",
+      phutil_loggable_string("a\x1Fb"));
   }
 
 

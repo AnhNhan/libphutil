@@ -26,6 +26,7 @@ abstract class BaseHTTPFuture extends Future {
   private $headers  = array();
   private $uri;
   private $data;
+  private $expect;
 
 
 /* -(  Creating a New Request  )--------------------------------------------- */
@@ -89,9 +90,10 @@ abstract class BaseHTTPFuture extends Future {
    */
   final public function setMethod($method) {
     static $supported_methods = array(
-      'GET'   => true,
-      'POST'  => true,
-      'PUT'   => true,
+      'GET'     => true,
+      'POST'    => true,
+      'PUT'     => true,
+      'DELETE'  => true,
     );
 
     if (empty($supported_methods[$method])) {
@@ -216,6 +218,32 @@ abstract class BaseHTTPFuture extends Future {
     return $result;
   }
 
+  /**
+   * Set the status codes that are expected in the response.
+   * If set, isError on the status object will return true for status codes
+   * that are not in the input array. Otherise, isError will be true for any
+   * HTTP status code outside the 2xx range (notwithstanding other errors such
+   * as connection or transport issues).
+   *
+   * @param array|null List of expected HTTP status codes.
+   *
+   * @return this
+   * @task config
+   */
+  public function setExpectStatus($status_codes) {
+    $this->expect = $status_codes;
+    return $this;
+  }
+
+  /**
+   * Return list of expected status codes, or null if not set.
+   *
+   * @return array|null List of expected status codes.
+   */
+  public function getExpectStatus() {
+    return $this->expect;
+  }
+
 
 /* -(  Resolving the Request  )---------------------------------------------- */
 
@@ -224,7 +252,7 @@ abstract class BaseHTTPFuture extends Future {
    * Exception-oriented resolve(). Throws if the status indicates an error
    * occurred.
    *
-   * @return tuple  HTTP request result <status, body, headers> tuple.
+   * @return tuple  HTTP request result <body, headers> tuple.
    * @task resolve
    */
   final public function resolvex() {
@@ -288,7 +316,12 @@ abstract class BaseHTTPFuture extends Future {
       }
     }
 
-    $status = new HTTPFutureResponseStatusHTTP($response_code, $body);
+    $status = new HTTPFutureResponseStatusHTTP(
+      $response_code,
+      $body,
+      $headers,
+      $this->expect);
+
     return array($status, $body, $headers);
   }
 
@@ -319,6 +352,26 @@ abstract class BaseHTTPFuture extends Future {
     }
 
     return $headers;
+  }
+
+
+  /**
+   * Find value of the first header with given name.
+   *
+   * @param list List of headers from `resolve()`.
+   * @param string Case insensitive header name.
+   * @return string Value of the header or null if not found.
+   * @task resolve
+   */
+  public static function getHeader(array $headers, $search) {
+    assert_instances_of($headers, 'array');
+    foreach ($headers as $header) {
+      list($name, $value) = $header;
+      if (strcasecmp($name, $search) == 0) {
+        return $value;
+      }
+    }
+    return null;
   }
 
 

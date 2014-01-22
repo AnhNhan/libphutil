@@ -6,12 +6,12 @@
 final class PhutilRemarkupEngineRemarkupDefaultBlockRule
   extends PhutilRemarkupEngineBlockRule {
 
-  public function getBlockPattern() {
-    return "/.*/";
+  public function getPriority() {
+    return 750;
   }
 
-  public function shouldMergeBlocks() {
-    return false;
+  public function getMatchingLineCount(array $lines, $cursor) {
+    return 1;
   }
 
   public function markupText($text) {
@@ -27,6 +27,10 @@ final class PhutilRemarkupEngineRemarkupDefaultBlockRule
 
     if ($this->getEngine()->getConfig('preserve-linebreaks')) {
       $text = phutil_escape_html_newlines($text);
+    }
+
+    if (!strlen($text)) {
+      return null;
     }
 
     return phutil_tag('p', array(), $text);

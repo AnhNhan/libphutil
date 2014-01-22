@@ -104,7 +104,11 @@ final class PhutilServiceProfiler {
           $desc = '$ '.$data['command'];
           break;
         case 'conduit':
-          $desc = $data['method'].'() <bytes = '.$data['size'].'>';
+          if (isset($data['size'])) {
+            $desc = $data['method'].'() <bytes = '.$data['size'].'>';
+          } else {
+            $desc = $data['method'].'()';
+          }
           break;
         case 'http':
           $desc = $data['uri'];
@@ -120,6 +124,28 @@ final class PhutilServiceProfiler {
           break;
         case 'event':
           $desc = $data['kind'].' <listeners = '.$data['count'].'>';
+          break;
+        case 'ldap':
+          $call = idx($data, 'call', '?');
+          $params = array();
+          switch ($call) {
+            case 'connect':
+              $params[] = $data['host'].':'.$data['port'];
+              break;
+            case 'start-tls':
+              break;
+            case 'bind':
+              $params[] = $data['user'];
+              break;
+            case 'search':
+              $params[] = $data['dn'];
+              $params[] = $data['query'];
+              break;
+            default:
+              $params[] = '?';
+              break;
+          }
+          $desc = "{$call} (".implode(', ', $params).")";
           break;
       }
     } else if ($is_end) {

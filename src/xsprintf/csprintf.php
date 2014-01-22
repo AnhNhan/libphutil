@@ -8,6 +8,10 @@
  *   %Ls
  *     List of strings that will be escaped. They will be space separated.
  *
+ *   %P
+ *     Password (or other sensitive parameter) to escape. Pass a
+ *     PhutilOpaqueEnvelope.
+ *
  *   %C (Raw Command)
  *     Passes the argument through without escaping. Dangerous!
  *
@@ -21,7 +25,7 @@
  */
 function csprintf($pattern/* , ... */) {
   $args = func_get_args();
-  return xsprintf('xsprintf_command', null, $args);
+  return new PhutilCommandString($args);
 }
 
 /**
@@ -46,6 +50,16 @@ function xsprintf_command($userdata, &$pattern, &$pos, &$value, &$length) {
   $type = $pattern[$pos];
   $next = (strlen($pattern) > $pos + 1) ? $pattern[$pos + 1] : null;
 
+  $is_unmasked = !empty($userdata['unmasked']);
+
+  if ($value instanceof PhutilCommandString) {
+    if ($is_unmasked) {
+      $value = $value->getUnmaskedString();
+    } else {
+      $value = $value->getMaskedString();
+    }
+  }
+
   switch ($type) {
     case 'L':
       // Only '%Ls' is supported.
@@ -59,8 +73,8 @@ function xsprintf_command($userdata, &$pattern, &$pos, &$value, &$length) {
       $type = 's';
 
       // Check that the value is a non-empty array.
-      if (!is_array($value) || !$value) {
-        throw new Exception("Expected a non-empty array for %Ls conversion.");
+      if (!is_array($value)) {
+        throw new Exception("Expected an array for %Ls conversion.");
       }
 
       // Convert the list of strings to a single string.
@@ -70,9 +84,23 @@ function xsprintf_command($userdata, &$pattern, &$pos, &$value, &$length) {
       $value = escapeshellarg($value);
       $type = 's';
       break;
+    case 'P':
+      if (!($value instanceof PhutilOpaqueEnvelope)) {
+        throw new Exception(
+          "Expected PhutilOpaqueEnvelope for %P conversion.");
+      }
+      if ($is_unmasked) {
+        $value = $value->openEnvelope();
+      } else {
+        $value = 'xxxxx';
+      }
+      $value = escapeshellarg($value);
+      $type = 's';
+      break;
     case 'C':
       $type = 's';
       break;
   }
+
   $pattern[$pos] = $type;
 }

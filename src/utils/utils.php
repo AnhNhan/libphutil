@@ -867,3 +867,124 @@ function phutil_is_windows() {
 function phutil_is_hiphop_runtime() {
   return (array_key_exists('HPHP', $_ENV) && $_ENV['HPHP'] === 1);
 }
+
+/**
+ * Fire an event allowing any listeners to clear up any outstanding requirements
+ * before the request completes abruptly.
+ *
+ * @param int|string $status
+ * @group library
+ */
+function phutil_exit($status = 0) {
+  $event = new PhutilEvent(
+    PhutilEventType::TYPE_WILLEXITABRUPTLY,
+    array("status" => $status));
+  PhutilEventEngine::dispatchEvent($event);
+
+  exit($status);
+}
+
+/**
+ * Converts a string to a loggable one, with unprintables and newlines escaped.
+ *
+ * @param string  Any string.
+ * @return string String with control and newline characters escaped, suitable
+ *                for printing on a single log line.
+ */
+function phutil_loggable_string($string) {
+  if (preg_match('/^[\x20-\x7E]+$/', $string)) {
+    return $string;
+  }
+
+  $result = '';
+
+  static $c_map = array(
+    "\\" => '\\\\',
+    "\n" => '\\n',
+    "\r" => '\\r',
+    "\t" => '\\t',
+  );
+
+  $len = strlen($string);
+  for ($ii = 0; $ii < $len; $ii++) {
+    $c = $string[$ii];
+    if (isset($c_map[$c])) {
+      $result .= $c_map[$c];
+    } else {
+      $o = ord($c);
+      if ($o < 0x20 || $o == 0x7F) {
+        $result .= '\\x'.sprintf('%02X', $o);
+      } else {
+        $result .= $c;
+      }
+    }
+  }
+
+  return $result;
+}
+
+
+/**
+ * Perform an `fwrite()` which distinguishes between EAGAIN and EPIPE.
+ *
+ * PHP's `fwrite()` is broken, and never returns `false` for writes to broken
+ * nonblocking pipes: it always returns 0, and provides no straightforward
+ * mechanism for distinguishing between EAGAIN (buffer is full, can't write any
+ * more right now) and EPIPE or similar (no write will ever succeed).
+ *
+ * See: https://bugs.php.net/bug.php?id=39598
+ *
+ * If you call this method instead of `fwrite()`, it will attempt to detect
+ * when a zero-length write is caused by EAGAIN and return `0` only if the
+ * write really should be retried.
+ *
+ * @param resource  Socket or pipe stream.
+ * @param string    Bytes to write.
+ * @return bool|int Number of bytes written, or `false` on any error (including
+ *                  errors which `fpipe()` can not detect, like a broken pipe).
+ */
+function phutil_fwrite_nonblocking_stream($stream, $bytes) {
+  if (!strlen($bytes)) {
+    return 0;
+  }
+
+  $result = @fwrite($stream, $bytes);
+  if ($result !== 0) {
+    // In cases where some bytes are witten (`$result > 0`) or
+    // an error occurs (`$result === false`), the behavior of fwrite() is
+    // correct. We can return the value as-is.
+    return $result;
+  }
+
+  // If we make it here, we performed a 0-length write. Try to distinguish
+  // between EAGAIN and EPIPE. To do this, we're going to `stream_select()`
+  // the stream, write to it again if PHP claims that it's writable, and
+  // consider the pipe broken if the write fails.
+
+  $read = array();
+  $write = array($stream);
+  $except = array();
+
+  @stream_select($read, $write, $except, 0);
+
+  if (!$write) {
+    // The stream isn't writable, so we conclude that it probably really is
+    // blocked and the underlying error was EAGAIN. Return 0 to indicate that
+    // no data could be written yet.
+    return 0;
+  }
+
+  // If we make it here, PHP **just** claimed that this stream is writable, so
+  // perform a write. If the write also fails, conclude that these failures are
+  // EPIPE or some other permanent failure.
+  $result = @fwrite($stream, $bytes);
+  if ($result !== 0) {
+    // The write worked or failed explicitly. This value is fine to return.
+    return $result;
+  }
+
+  // We performed a 0-length write, were told that the stream was writable, and
+  // then immediately performed another 0-length write. Conclude that the pipe
+  // is broken and return `false`.
+  return false;
+}

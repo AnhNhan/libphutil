@@ -12,6 +12,7 @@
  * @task directory   Directories
  * @task file        Files
  * @task path        Paths
+ * @task exec        Executables
  * @task assert      Assertions
  * @group filesystem
  */
@@ -186,12 +187,19 @@ final class Filesystem {
       $handle = @fopen($try_path, 'x');
       if ($handle) {
         $ok = fwrite($handle, $data);
-        fclose($handle);
+        if ($ok === false) {
+          throw new FilesystemException(
+            $try_path,
+            pht("Failed to write file data."));
+        }
+
+        $ok = fclose($handle);
         if (!$ok) {
           throw new FilesystemException(
             $try_path,
-            "Failed to write file data.");
+            pht("Failed to close file handle."));
         }
+
         return $try_path;
       }
 
@@ -380,43 +388,80 @@ final class Filesystem {
    * @return  string  Random bytestring of the provided length.
    *
    * @task file
-   *
-   * @phutil-external-symbol class COM
    */
   public static function readRandomBytes($number_of_bytes) {
-
-    if (phutil_is_windows()) {
-      if (!function_exists('openssl_random_pseudo_bytes')) {
-        if (version_compare(PHP_VERSION, '5.3.0') < 0) {
-          throw new Exception(
-            'Filesystem::readRandomBytes() requires at least PHP 5.3 under '.
-            'Windows.');
-        }
-        throw new Exception(
-          'Filesystem::readRandomBytes() requires OpenSSL extension under '.
-          'Windows.');
-      }
-      $strong = true;
-      return openssl_random_pseudo_bytes($number_of_bytes, $strong);
+    $number_of_bytes = (int)$number_of_bytes;
+    if ($number_of_bytes < 1) {
+      throw new Exception(pht("You must generate at least 1 byte of entropy."));
     }
+
+    // Try to use `openssl_random_psuedo_bytes()` if it's available. This source
+    // is the most widely available source, and works on Windows/Linux/OSX/etc.
+
+    if (function_exists('openssl_random_pseudo_bytes')) {
+      $strong = true;
+      $data = openssl_random_pseudo_bytes($number_of_bytes, $strong);
+
+      if (!$strong) {
+        // NOTE: This indicates we're using a weak random source. This is
+        // probably OK, but maybe we should be more strict here.
+      }
+
+      if ($data === false) {
+        throw new Exception(
+          pht('openssl_random_pseudo_bytes() failed to generate entropy!'));
+      }
+
+      if (strlen($data) != $number_of_bytes) {
+        throw new Exception(
+          pht(
+            'openssl_random_pseudo_bytes() returned an unexpected number of '.
+            'bytes (got %d, expected %d)!',
+            strlen($data),
+            $number_of_bytes));
+      }
+
+      return $data;
+    }
+
+
+    // Try to use `/dev/urandom` if it's available. This is usually available
+    // on non-Windows systems, but some PHP config (open_basedir) and chrooting
+    // may limit our access to it.
 
     $urandom = @fopen('/dev/urandom', 'rb');
-    if (!$urandom) {
-      throw new FilesystemException(
-        '/dev/urandom',
-        'Failed to open /dev/urandom for reading!');
+    if ($urandom) {
+      $data = @fread($urandom, $number_of_bytes);
+      @fclose($urandom);
+      if (strlen($data) != $number_of_bytes) {
+        throw new FilesystemException(
+          '/dev/urandom',
+          'Failed to read random bytes!');
+      }
+      return $data;
     }
 
-    $data = @fread($urandom, $number_of_bytes);
-    if (strlen($data) != $number_of_bytes) {
-      throw new FilesystemException(
-        '/dev/urandom',
-        'Failed to read random bytes!');
+    // (We might be able to try to generate entropy here from a weaker source
+    // if neither of the above sources panned out, see some discussion in
+    // T4153.)
+
+    // We've failed to find any valid entropy source. Try to fail in the most
+    // useful way we can, based on the platform.
+
+    if (phutil_is_windows()) {
+      throw new Exception(
+        pht(
+          'Filesystem::readRandomBytes() requires the PHP OpenSSL extension '.
+          'to be installed and enabled to access an entropy source. On '.
+          'Windows, this extension is usually installed but not enabled by '.
+          'default. Enable it in your "php.ini".'));
     }
 
-    @fclose($urandom);
-
-    return $data;
+    throw new Exception(
+      pht(
+        'Filesystem::readRandomBytes() requires the PHP OpenSSL extension '.
+        'or access to "/dev/urandom". Install or enable the OpenSSL '.
+        'extension, or make sure "/dev/urandom" is accessible.'));
   }
 
 
@@ -622,15 +667,16 @@ final class Filesystem {
     } while (--$tries);
 
     if (!$tries) {
-
       $df = disk_free_space($tmp);
       if ($df !== false && $df < 1024 * 1024) {
         throw new FilesystemException(
-          $dir, "Failed to create a temporary directory: the disk is full.");
+          $dir,
+          pht("Failed to create a temporary directory: the disk is full."));
       }
 
       throw new FilesystemException(
-        $dir, "Failed to create a temporary directory.");
+        $dir,
+        pht("Failed to create a temporary directory in '%s'.", $tmp));
     }
 
     return $dir;
@@ -834,6 +880,43 @@ final class Filesystem {
    */
   public static function pathExists($path) {
     return file_exists($path) || is_link($path);
+  }
+
+
+  /**
+   * Determine if an executable binary (like `git` or `svn`) exists within
+   * the configured `$PATH`.
+   *
+   * @param   string  Binary name, like `'git'` or `'svn'`.
+   * @return  bool    True if the binary exists and is executable.
+   * @task    exec
+   */
+  public static function binaryExists($binary) {
+    return self::resolveBinary($binary) !== null;
+  }
+
+
+  /**
+   * Locates the full path that an executable binary (like `git` or `svn`) is at
+   * the configured `$PATH`.
+   *
+   * @param   string  Binary name, like `'git'` or `'svn'`.
+   * @return  string  The full binary path if it is present, or null.
+   * @task    exec
+   */
+  public static function resolveBinary($binary) {
+    if (phutil_is_windows()) {
+      list($err, $stdout) = exec_manual('where %s', $binary);
+      $stdout = phutil_split_lines($stdout);
+      if (!$stdout) {
+        return null;
+      }
+      $stdout = head($stdout);
+    } else {
+      list($err, $stdout) = exec_manual('which %s', $binary);
+    }
+
+    return $err === 0 ? trim($stdout) : null;
   }
 
 

@@ -41,9 +41,7 @@ function exec_manual($cmd /* , ... */) {
 
 
 /**
- * Execute a command which takes over stdin, stdout and stderr, similar to
- * passthru(), but which preserves TTY semantics, escapes arguments, and is
- * traceable.
+ * Wrapper for @{class:PhutilExecPassthru}.
  *
  * @param  string  sprintf()-style command pattern to execute.
  * @param  ...     Arguments to sprintf pattern.
@@ -52,42 +50,62 @@ function exec_manual($cmd /* , ... */) {
  */
 function phutil_passthru($cmd /* , ... */) {
   $args = func_get_args();
-  $command = call_user_func_array('csprintf', $args);
+  return newv('PhutilExecPassthru', $args)->execute();
+}
 
-  $profiler = PhutilServiceProfiler::getInstance();
-  $call_id = $profiler->beginServiceCall(
-    array(
-      'type'    => 'exec',
-      'subtype' => 'passthru',
-      'command' => $command,
-    ));
 
-  $spec  = array(STDIN, STDOUT, STDERR);
-  $pipes = array();
+/**
+ * Return a human-readable signal name (like "SIGINT" or "SIGKILL") for a given
+ * signal number.
+ *
+ * @param   int     Signal number.
+ * @return  string  Human-readable signal name.
+ */
+function phutil_get_signal_name($signo) {
 
-  if (phutil_is_windows()) {
-    // Without 'bypass_shell', things like launching vim don't work properly,
-    // and we can't execute commands with spaces in them, and all commands
-    // invoked from git bash fail horridly, and everything is a mess in general.
-    $options = array(
-      'bypass_shell' => true,
-    );
-    $proc = @proc_open($command, $spec, $pipes, null, null, $options);
-  } else {
-    $proc = @proc_open($command, $spec, $pipes);
+  // These aren't always defined; try our best to look up the signal name.
+  $constant_names = array(
+    'SIGHUP',
+    'SIGINT',
+    'SIGQUIT',
+    'SIGILL',
+    'SIGTRAP',
+    'SIGABRT',
+    'SIGIOT',
+    'SIGBUS',
+    'SIGFPE',
+    'SIGUSR1',
+    'SIGSEGV',
+    'SIGUSR2',
+    'SIGPIPE',
+    'SIGALRM',
+    'SIGTERM',
+    'SIGSTKFLT',
+    'SIGCLD',
+    'SIGCHLD',
+    'SIGCONT',
+    'SIGTSTP',
+    'SIGTTIN',
+    'SIGTTOU',
+    'SIGURG',
+    'SIGXCPU',
+    'SIGXFSZ',
+    'SIGVTALRM',
+    'SIGPROF',
+    'SIGWINCH',
+    'SIGPOLL',
+    'SIGIO',
+    'SIGPWR',
+    'SIGSYS',
+    'SIGBABY',
+  );
+
+  $signal_names = array();
+  foreach ($constant_names as $constant) {
+    if (defined($constant)) {
+      $signal_names[constant($constant)] = $constant;
+    }
   }
 
-  if ($proc === false) {
-    $err = 1;
-  } else {
-    $err = proc_close($proc);
-  }
-
-  $profiler->endServiceCall(
-    $call_id,
-    array(
-      'err' => $err,
-    ));
-
-  return $err;
+  return idx($signal_names, $signo);
 }

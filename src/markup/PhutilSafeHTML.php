@@ -9,7 +9,7 @@ final class PhutilSafeHTML {
   }
 
   public function __toString() {
-    return $this->getHTMLContent();
+    return $this->content;
   }
 
   public function getHTMLContent() {
@@ -28,6 +28,17 @@ final class PhutilSafeHTML {
     array_shift($args);
     $args = array_map('phutil_escape_html', $args);
     return new PhutilSafeHTML(call_user_func_array($function, $args));
+  }
+
+// Requires http://pecl.php.net/operator.
+
+  public function __concat($html) {
+    $clone = clone $this;
+    return $clone->appendHTML($html);
+  }
+
+  public function __assign_concat($html) {
+    return $this->appendHTML($html);
   }
 
 }

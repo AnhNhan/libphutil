@@ -33,6 +33,7 @@ final class XHPASTTreeTestCase extends PhutilTestCase {
 
     $this->assertEval('simple string', "'simple string'");
     $this->assertEval('42', "'42'");
+    $this->assertEval('binary string', "b'binary string'");
     $this->assertEval(3.1415926, "3.1415926");
     $this->assertEval(42, '42');
     $this->assertEval(
@@ -133,7 +134,7 @@ final class XHPASTTreeTestCase extends PhutilTestCase {
   private function assertEval($value, $string) {
     $this->assertEqual(
       $value,
-      XHPASTTree::evalStaticString($string),
+      XHPASTTree::newStatementFromString($string)->evalStatic(),
       $string);
   }
 

@@ -8,6 +8,9 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
   const MODE_DEFAULT = 0;
   const MODE_TEXT = 1;
 
+  /**
+   * @var PhutilRemarkupEngineBlockRule[]
+   */
   private $blockRules = array();
   private $config = array();
   private $mode;
@@ -35,6 +38,9 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
 
   public function setBlockRules(array $rules) {
     assert_instances_of($rules, 'PhutilRemarkupEngineBlockRule');
+
+    $rules = msort($rules, 'getPriority');
+
     $this->blockRules = $rules;
     foreach ($this->blockRules as $rule) {
       $rule->setEngine($this);
@@ -116,63 +122,52 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
     // Apply basic block and paragraph normalization to the text. NOTE: We don't
     // strip trailing whitespace because it is semantic in some contexts,
     // notably inlined diffs that the author intends to show as a code block.
-    $text = preg_replace("/\r\n?/", "\n", $text);
-    $text = preg_split("/\n{2,}/", $text);
-
+    $text        = phutil_split_lines($text, true);
     $block_rules = $this->blockRules;
+    $blocks      = array();
+    $cursor      = 0;
+    $prev_block  = array();
 
-    $blocks = array();
-    $last = null;
-    $last_block = null;
-    foreach ($text as $block) {
+    while (isset($text[$cursor])) {
+      $starting_cursor = $cursor;
+      foreach ($block_rules as $block_rule) {
+        $num_lines = $block_rule->getMatchingLineCount($text, $cursor);
 
-      $action = null;
-      if ($last !== null) {
-        if ($block_rules[$last]->shouldContinueWithBlock($block, $last_block)) {
-          $action = 'merge';
-        }
-      }
-
-      if (!$action) {
-        foreach ($block_rules as $key => $block_rule) {
-          if (!$block_rule->shouldMatchBlock(trim($block, "\n"))) {
-            continue;
+        if ($num_lines) {
+          if ($blocks) {
+            $prev_block = last($blocks);
           }
-          if (($last !== null) &&
-              ($key == $last) &&
-              $block_rule->shouldMergeBlocks()) {
-            $action = 'merge';
-          } else {
-            $action = 'append';
-          }
-          $last = $key;
-          break;
-        }
-      }
 
-      $last_block = $block;
-
-      switch ($action) {
-        case 'merge':
-          end($blocks);
-          $last_block_key = key($blocks);
-          $blocks[$last_block_key]['block'] .= "\n\n".$block;
-          $last_block = $blocks[$last_block_key]['block'];
-          break;
-        case 'append':
-          $blocks[] = array(
-            'rule'  => $block_rules[$last],
-            'block' => $block,
+          $curr_block = array(
+            "start" => $cursor,
+            "num_lines" => $num_lines,
+            "rule" => $block_rule,
+            "is_empty" => self::isEmptyBlock($text, $cursor, $num_lines),
           );
+
+          if ($prev_block
+            && self::shouldMergeBlocks($text, $prev_block, $curr_block)) {
+            $blocks[last_key($blocks)]["num_lines"] += $curr_block["num_lines"];
+            $blocks[last_key($blocks)]["is_empty"] =
+              $blocks[last_key($blocks)]["is_empty"] && $curr_block["is_empty"];
+          } else {
+            $blocks[] = $curr_block;
+          }
+
+          $cursor += $num_lines;
           break;
-        default:
-          throw new Exception("Block in text did not match any block rule.");
+        }
+      }
+
+      if ($starting_cursor === $cursor) {
+        throw new Exception("Block in text did not match any block rule.");
       }
     }
 
     $output = array();
     foreach ($blocks as $block) {
-      $output[] = $block['rule']->markupText($block['block']);
+      $output[] = $block['rule']->markupText(
+        implode('', array_slice($text, $block['start'], $block['num_lines'])));
     }
 
     $map = $this->storage->getMap();
@@ -192,6 +187,45 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
     );
   }
 
+  private static function shouldMergeBlocks($text, $prev_block, $curr_block) {
+    $block_rules = ipull(array($prev_block, $curr_block), "rule");
+
+    $default_rule = "PhutilRemarkupEngineRemarkupDefaultBlockRule";
+    try {
+      assert_instances_of($block_rules, $default_rule);
+
+      // If the last block was empty keep merging
+      if ($prev_block['is_empty']) {
+        return true;
+      }
+
+      // If this line is blank keep merging
+      if ($curr_block['is_empty']) {
+        return true;
+      }
+
+      // If the current line and the last line have content, keep merging
+      if (strlen(trim($text[$curr_block["start"] - 1]))) {
+        if (strlen(trim($text[$curr_block["start"]]))) {
+          return true;
+        }
+      }
+    } catch (Exception $e) {
+
+    }
+
+    return false;
+  }
+
+  private static function isEmptyBlock($text, $start, $num_lines) {
+    for ($cursor = $start; $cursor < $start + $num_lines; $cursor++) {
+      if (strlen(trim($text[$cursor]))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   public function postprocessText(array $dict) {
     $this->metadata = idx($dict, 'metadata', array());
 
@@ -206,10 +240,10 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
       $rule->didMarkupText();
     }
 
-    return $this->restoreText(idx($dict, 'output'));
+    return $this->restoreText(idx($dict, 'output'), $this->isTextMode());
   }
 
   public function restoreText($text) {
-    return $this->storage->restore($text);
+    return $this->storage->restore($text, $this->isTextMode());
   }
 }

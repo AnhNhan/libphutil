@@ -7,18 +7,24 @@
  */
 final class PhutilDaemonOverseer {
 
-  const HEARTBEAT_WAIT = 120;
+  const EVENT_DID_LAUNCH    = 'daemon.didLaunch';
+  const EVENT_DID_LOG       = 'daemon.didLogMessage';
+  const EVENT_DID_HEARTBEAT = 'daemon.didHeartbeat';
+  const EVENT_WILL_EXIT     = 'daemon.willExit';
+
+  const HEARTBEAT_WAIT      = 120;
+  const RESTART_WAIT        = 5;
 
   private $captureBufferSize = 65536;
 
   private $deadline;
   private $deadlineTimeout  = 86400;
-  private $restartDelay     = 60;
   private $killDelay        = 3;
   private $heartbeat;
 
   private $daemon;
   private $argv;
+  private $moreArgs;
   private $childPID;
   private $signaled;
   private static $instance;
@@ -27,9 +33,8 @@ final class PhutilDaemonOverseer {
   private $traceMemory;
   private $daemonize;
   private $phddir;
-  private $conduit;
-  private $conduitURI;
   private $verbose;
+  private $daemonID;
 
   public function __construct(array $argv) {
     PhutilServiceProfiler::getInstance()->enableDiscardMode();
@@ -42,12 +47,9 @@ final class PhutilDaemonOverseer {
     Launch and oversee an instance of __daemon__.
 EOHELP
       );
+    $args->parseStandardArguments();
     $args->parsePartial(
       array(
-        array(
-          'name' => 'trace',
-          'help' => 'Enable debug tracing.',
-        ),
         array(
           'name' => 'trace-memory',
           'help' => 'Enable debug memory tracing.',
@@ -67,49 +69,58 @@ EOHELP
           'help'  => 'Write PID information to __dir__.',
         ),
         array(
-          'name'  => 'conduit-uri',
-          'param' => 'uri',
-          'help'  => 'Send logs to Conduit on __uri__.'
-        ),
-        array(
           'name'  => 'verbose',
           'help'  => 'Enable verbose activity logging.',
         ),
+        array(
+          'name' => 'load-phutil-library',
+          'param' => 'library',
+          'repeat' => true,
+          'help' => 'Load __library__.',
+        ),
       ));
-    $argv = $args->getUnconsumedArgumentVector();
+    $argv = array();
 
-    $this->daemon = array_shift($argv);
+    $more = $args->getUnconsumedArgumentVector();
+
+    $this->daemon = array_shift($more);
     if (!$this->daemon) {
       $args->printHelpAndExit();
     }
 
     if ($args->getArg('trace')) {
       $this->traceMode = true;
-      array_unshift($argv, '--trace');
+      $argv[] = '--trace';
     }
 
     if ($args->getArg('trace-memory')) {
       $this->traceMode = true;
       $this->traceMemory = true;
-      array_unshift($argv, '--trace-memory');
+      $argv[] = '--trace-memory';
+    }
+
+    if ($args->getArg('load-phutil-library')) {
+      foreach ($args->getArg('load-phutil-library') as $library) {
+        $argv[] = '--load-phutil-library='.$library;
+      }
     }
 
     $log = $args->getArg('log');
     if ($log) {
       ini_set('error_log', $log);
-      array_unshift($argv, '--log='.$log);
+      $argv[] = '--log='.$log;
     }
 
     $verbose = $args->getArg('verbose');
     if ($verbose) {
       $this->verbose = true;
-      array_unshift($argv, '--verbose');
+      $argv[] = '--verbose';
     }
 
     $this->daemonize  = $args->getArg('daemonize');
     $this->phddir     = $args->getArg('phd');
-    $this->conduitURI = $args->getArg('conduit-uri');
     $this->argv       = $argv;
+    $this->moreArgs   = $more;
 
     error_log("Bringing daemon '{$this->daemon}' online...");
 
@@ -147,20 +158,14 @@ EOHELP
         json_encode($desc));
     }
 
-    if ($this->conduitURI) {
-      $this->conduit = new ConduitClient($this->conduitURI);
-      $this->daemonLogID = $this->conduit->callMethodSynchronous(
-        'daemon.launched',
-        array(
-          'daemon'  => $this->daemon,
-          'host'    => php_uname('n'),
-          'pid'     => getmypid(),
-          'argv'    => json_encode(array_slice($original_argv, 1)),
-        ));
-    }
+    $this->daemonID = $this->generateDaemonID();
+    $this->dispatchEvent(
+      self::EVENT_DID_LAUNCH,
+      array('argv' => array_slice($original_argv, 1)));
 
     declare(ticks = 1);
     pcntl_signal(SIGUSR1, array($this, 'didReceiveKeepaliveSignal'));
+    pcntl_signal(SIGUSR2, array($this, 'didReceiveNotifySignal'));
 
     pcntl_signal(SIGINT,  array($this, 'didReceiveTerminalSignal'));
     pcntl_signal(SIGTERM, array($this, 'didReceiveTerminalSignal'));
@@ -190,13 +195,19 @@ EOHELP
     // the shell process won't properly posix_setsid() so the pgid of the child
     // won't be meaningful.
 
-    $exec_daemon = './exec_daemon.php';
-    $argv = $this->argv;
-    array_unshift($argv, 'exec', $exec_daemon, $this->daemon);
-    foreach ($argv as $k => $arg) {
-      $argv[$k] = escapeshellarg($arg);
-    }
+    // Format the exec command, which looks something like:
+    //
+    //   exec ./exec_daemon DaemonName --trace -- --no-discovery
 
+    $argv = array();
+    $argv[] = csprintf('exec ./exec_daemon.php %s', $this->daemon);
+    foreach ($this->argv as $k => $arg) {
+      $argv[] = csprintf('%s', $arg);
+    }
+    $argv[] = '--';
+    foreach ($this->moreArgs as $k => $arg) {
+      $argv[] = csprintf('%s', $arg);
+    }
     $command = implode(' ', $argv);
 
     while (true) {
@@ -228,10 +239,10 @@ EOHELP
           $stdout = trim($stdout);
           $stderr = trim($stderr);
           if (strlen($stdout)) {
-            $this->logMessage('STDO', $stdout, $stdout);
+            $this->logMessage('STDO', $stdout);
           }
           if (strlen($stderr)) {
-            $this->logMessage('STDE', $stderr, $stderr);
+            $this->logMessage('STDE', $stderr);
           }
           $future->discardBuffers();
 
@@ -249,18 +260,7 @@ EOHELP
           }
           if ($this->heartbeat < time()) {
             $this->heartbeat = time() + self::HEARTBEAT_WAIT;
-            if ($this->conduitURI) {
-              try {
-                $this->conduit = new ConduitClient($this->conduitURI);
-                $this->conduit->callMethodSynchronous(
-                  'daemon.setstatus',
-                  array(
-                    'daemonLogID'  => $this->daemonLogID,
-                    'status'       => 'run',
-                  ));
-              } catch (Exception $ex) {
-              }
-            }
+            $this->dispatchEvent(self::EVENT_DID_HEARTBEAT);
           }
         } while (time() < $this->deadline);
 
@@ -269,7 +269,14 @@ EOHELP
       } while (false);
 
       $this->logMessage('WAIT', 'Waiting to restart process.');
-      sleep($this->restartDelay);
+      sleep(self::RESTART_WAIT);
+    }
+  }
+
+  public function didReceiveNotifySignal($signo) {
+    $pid = $this->childPID;
+    if ($pid) {
+      posix_kill($pid, $signo);
     }
   }
 
@@ -281,49 +288,40 @@ EOHELP
     if ($this->signaled) {
       exit(128 + $signo);
     }
-
-    echo "\n>>> Shutting down...\n";
-    fflush(STDOUT);
-    fflush(STDERR);
-    fclose(STDOUT);
-    fclose(STDERR);
     $this->signaled = true;
+
+    $signame = phutil_get_signal_name($signo);
+    if ($signame) {
+      $sigmsg = "Shutting down in response to signal {$signo} ({$signame}).";
+    } else {
+      $sigmsg = "Shutting down in response to signal {$signo}.";
+    }
+
+    $this->logMessage('EXIT', $sigmsg, $signo);
+
+    @fflush(STDOUT);
+    @fflush(STDERR);
+    @fclose(STDOUT);
+    @fclose(STDERR);
     $this->annihilateProcessGroup();
 
-    if ($this->conduitURI) {
-      try {
-        $this->conduit = new ConduitClient($this->conduitURI);
-        $this->conduit->callMethodSynchronous(
-          'daemon.setstatus',
-          array(
-            'daemonLogID'  => $this->daemonLogID,
-            'status'       => 'exit',
-          ));
-      } catch (Exception $ex) {
-      }
-    }
+    $this->dispatchEvent(self::EVENT_WILL_EXIT);
+
     exit(128 + $signo);
   }
 
-  private function logMessage($type, $message, $remote = null) {
+  private function logMessage($type, $message, $context = null) {
     if (!$this->shouldRunSilently()) {
       echo date('Y-m-d g:i:s A').' ['.$type.'] '.$message."\n";
     }
-    if ($this->conduit) {
-      // TODO: This is kind of sketchy to do without any timeouts since a
-      // conduit server hang could throw a wrench into things.
-      try {
-        $this->conduit->callMethodSynchronous(
-          'daemon.log',
-          array(
-            'daemonLogID'  => $this->daemonLogID,
-            'type'         => $type,
-            'message'      => $remote,
-          ));
-      } catch (Exception $ex) {
-        // TOOD: Send this somewhere useful instead of eating it.
-      }
-    }
+
+    $this->dispatchEvent(
+      self::EVENT_DID_LOG,
+      array(
+        'type' => $type,
+        'message' => $message,
+        'context' => $context,
+      ));
   }
 
   private function shouldRunSilently() {
@@ -404,6 +402,40 @@ EOHELP
     }
 
     return $results;
+  }
+
+
+  /**
+   * Generate a unique ID for this daemon.
+   *
+   * @return string A unique daemon ID.
+   */
+  private function generateDaemonID() {
+    return substr(getmypid().':'.Filesystem::readRandomCharacters(12), 0, 12);
+  }
+
+
+  /**
+   * Dispatch an event to event listeners.
+   *
+   * @param  string Event type.
+   * @param  dict   Event parameters.
+   * @return void
+   */
+  private function dispatchEvent($type, array $params = array()) {
+    $data = array(
+      'id' => $this->daemonID,
+      'daemonClass' => $this->daemon,
+      'childPID' => $this->childPID,
+    ) + $params;
+
+    $event = new PhutilEvent($type, $data);
+
+    try {
+      PhutilEventEngine::dispatchEvent($event);
+    } catch (Exception $ex) {
+      phlog($ex);
+    }
   }
 
 }

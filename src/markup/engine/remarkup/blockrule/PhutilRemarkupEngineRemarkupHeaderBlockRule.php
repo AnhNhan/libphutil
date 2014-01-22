@@ -6,36 +6,57 @@
 final class PhutilRemarkupEngineRemarkupHeaderBlockRule
   extends PhutilRemarkupEngineBlockRule {
 
+  public function getMatchingLineCount(array $lines, $cursor) {
+    $num_lines = 0;
+    if (preg_match('/^(={1,5}).*+$/', $lines[$cursor])) {
+      $num_lines = 1;
+    } else {
+      if (isset($lines[$cursor+1])) {
+        $line = $lines[$cursor] . $lines[$cursor+1];
+        if (preg_match('/^([^\n]+)\n[-=]{2,}\s*$/', $line)) {
+          $num_lines = 2;
+          $cursor++;
+        }
+      }
+    }
+
+    if ($num_lines) {
+      $cursor++;
+      while (isset($lines[$cursor]) && !strlen(trim($lines[$cursor]))) {
+        $num_lines++;
+        $cursor++;
+      }
+    }
+
+    return $num_lines;
+  }
+
   const KEY_HEADER_TOC = 'headers.toc';
-
-  public function getBlockPattern() {
-    return '/^(={1,5})(.*?)\\1?\s*$/';
-  }
-
-  public function shouldMergeBlocks() {
-    return false;
-  }
 
   public function markupText($text) {
     $text = trim($text);
 
-    $level = 0;
-    for ($ii = 0; $ii < min(5, strlen($text)); $ii++) {
-      if ($text[$ii] == '=') {
-        ++$level;
-      } else {
-        break;
+    $lines = phutil_split_lines($text);
+    if (count($lines) > 1) {
+      $level = ($lines[1][0] == '=') ? 1 : 2;
+      $text = trim($lines[0]);
+    } else {
+      $level = 0;
+      for ($ii = 0; $ii < min(5, strlen($text)); $ii++) {
+        if ($text[$ii] == '=') {
+          ++$level;
+        } else {
+          break;
+        }
       }
+      $text = trim($text, ' =');
     }
-    $text = trim($text, ' =');
 
     $engine = $this->getEngine();
 
     if ($engine->isTextMode()) {
-      return
-        str_repeat('=', $level).' '.
-        $this->applyRules($text).
-        ' '.str_repeat('=', $level);
+      $char = ($level == 1) ? '=' : '-';
+      return $text."\n".str_repeat($char, phutil_utf8_strlen($text));
     }
 
     $use_anchors = $engine->getConfig('header.generate-toc');

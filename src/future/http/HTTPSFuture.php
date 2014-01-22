@@ -3,8 +3,6 @@
 /**
  * Very basic HTTPS future.
  *
- * TODO: This class is extremely limited.
- *
  * @group futures
  */
 final class HTTPSFuture extends BaseHTTPFuture {
@@ -12,10 +10,15 @@ final class HTTPSFuture extends BaseHTTPFuture {
   private static $multi;
   private static $results = array();
   private static $pool = array();
+  private static $globalCABundle;
+  private static $blindTrustDomains = array();
 
   private $handle;
   private $profilerCallID;
   private $cabundle;
+  private $followLocation = true;
+  private $responseBuffer = '';
+  private $responseBufferPos;
 
   /**
    * Create a temp file containing an SSL cert, and use it for this session.
@@ -55,6 +58,71 @@ final class HTTPSFuture extends BaseHTTPFuture {
    */
   public function getCABundle() {
     return $this->cabundle;
+  }
+
+  /**
+   * Set whether Location headers in the response will be respected.
+   * The default is true.
+   *
+   * @param boolean true to follow any Location header present in the response,
+   *                false to return the request directly
+   * @return this
+   */
+  public function setFollowLocation($follow) {
+    $this->followLocation = $follow;
+    return $this;
+  }
+
+  /**
+   * Get whether Location headers in the response will be respected.
+   *
+   * @return boolean
+   */
+  public function getFollowLocation() {
+    return $this->followLocation;
+  }
+
+  /**
+   * Set the fallback CA certificate if one is not specified
+   * for the session, given a path.
+   *
+   * @param string The path to a valid SSL certificate
+   * @return void
+   */
+  public static function setGlobalCABundleFromPath($path) {
+    self::$globalCABundle = $path;
+  }
+  /**
+   * Set the fallback CA certificate if one is not specified
+   * for the session, given a string.
+   *
+   * @param string The certificate
+   * @return void
+   */
+  public static function setGlobalCABundleFromString($certificate) {
+    $temp = new TempFile();
+    Filesystem::writeFile($temp, $certificate);
+    self::$globalCABundle = $temp;
+  }
+
+  /**
+   * Get the fallback global CA certificate
+   *
+   * @return string
+   */
+  public static function getGlobalCABundle() {
+    return self::$globalCABundle;
+  }
+
+  /**
+   * Set a list of domains to blindly trust. Certificates for these domains
+   * will not be validated.
+   *
+   * @param list<string> List of domain names to trust blindly.
+   * @return void
+   */
+  public static function setBlindlyTrustDomains(array $domains) {
+    self::$blindTrustDomains = array_fuse($domains);
   }
 
   /**
@@ -169,7 +237,7 @@ final class HTTPSFuture extends BaseHTTPFuture {
       for ($ii = 0; $ii < count($headers); $ii++) {
         list($name, $value) = $headers[$ii];
         $headers[$ii] = $name.': '.$value;
-        if (!strncasecmp($name, 'Expect')) {
+        if (!strncasecmp($name, 'Expect', strlen('Expect'))) {
           $saw_expect = true;
         }
       }
@@ -195,9 +263,13 @@ final class HTTPSFuture extends BaseHTTPFuture {
 
       // Make sure we get the headers and data back.
       curl_setopt($curl, CURLOPT_HEADER, true);
-      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-      curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-      curl_setopt($curl, CURLOPT_MAXREDIRS, 20);
+      curl_setopt($curl, CURLOPT_WRITEFUNCTION,
+        array($this, 'didReceiveDataCallback'));
+
+      if ($this->followLocation) {
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curl, CURLOPT_MAXREDIRS, 20);
+      }
 
       if (defined('CURLOPT_TIMEOUT_MS')) {
         // If CURLOPT_TIMEOUT_MS is available, use the higher-precision timeout.
@@ -210,11 +282,14 @@ final class HTTPSFuture extends BaseHTTPFuture {
       }
 
       // Try some decent fallbacks here:
-      // - First, check if a cabundle path is already set (e.g. externally).
+      // - First, check if a bundle is set explicit for this request, via
+      //   `setCABundle()` or similar.
+      // - Then, check if a global bundle is set explicitly for all requests,
+      //   via `setGlobalCABundle()` or similar.
       // - Then, if a local custom.pem exists, use that, because it probably
       //   means that the user wants to override everything (also because the
       //   user might not have access to change the box's php.ini to add
-      //   curl.cainfo.
+      //   curl.cainfo).
       // - Otherwise, try using curl.cainfo. If it's set explicitly, it's
       //   probably reasonable to try using it before we fall back to what
       //   libphutil ships with.
@@ -224,7 +299,9 @@ final class HTTPSFuture extends BaseHTTPFuture {
       if (!$this->getCABundle()) {
         $caroot = dirname(phutil_get_library_root('phutil')).'/resources/ssl/';
         $ini_val = ini_get('curl.cainfo');
-        if (Filesystem::pathExists($caroot.'custom.pem')) {
+        if (self::getGlobalCABundle()) {
+          $this->setCABundleFromPath(self::getGlobalCABundle());
+        } else if (Filesystem::pathExists($caroot.'custom.pem')) {
           $this->setCABundleFromPath($caroot.'custom.pem');
         } else if ($ini_val) {
           // TODO: We can probably do a pathExists() here, even.
@@ -235,7 +312,15 @@ final class HTTPSFuture extends BaseHTTPFuture {
       }
 
       curl_setopt($curl, CURLOPT_CAINFO, $this->getCABundle());
-      curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
+
+      $domain = id(new PhutilURI($uri))->getDomain();
+      if (!empty(self::$blindTrustDomains[$domain])) {
+        // Disable peer verification for domains that we blindly trust.
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+      } else {
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
+      }
+
       curl_setopt($curl, CURLOPT_SSLVERSION, 0);
     } else {
       $curl = $this->handle;
@@ -270,7 +355,7 @@ final class HTTPSFuture extends BaseHTTPFuture {
     }
 
     $info = self::$results[(int)$curl];
-    $result = curl_multi_getcontent($curl);
+    $result = $this->responseBuffer;
     $err_code = $info['result'];
 
     if ($err_code) {
@@ -296,5 +381,45 @@ final class HTTPSFuture extends BaseHTTPFuture {
     $profiler->endServiceCall($this->profilerCallID, array());
 
     return true;
+  }
+
+
+  /**
+   * Callback invoked by cURL as it reads HTTP data from the response. We save
+   * the data to a buffer.
+   */
+  public function didReceiveDataCallback($handle, $data) {
+    $this->responseBuffer .= $data;
+    return strlen($data);
+  }
+
+
+  /**
+   * Read data from the response buffer.
+   *
+   * NOTE: Like @{class:ExecFuture}, this method advances a read cursor but
+   * does not discard the data. The data will still be buffered, and it will
+   * all be returned when the future resolves. To discard the data after
+   * reading it, call @{method:discardBuffers}.
+   *
+   * @return string Response data, if available.
+   */
+  public function read() {
+    $result = substr($this->responseBuffer, $this->responseBufferPos);
+    $this->responseBufferPos = strlen($this->responseBuffer);
+    return $result;
+  }
+
+
+  /**
+   * Discard any buffered data. Normally, you call this after reading the
+   * data with @{method:read}.
+   *
+   * @return this
+   */
+  public function discardBuffers() {
+    $this->responseBuffer = '';
+    $this->responseBufferPos = 0;
+    return $this;
   }
 }

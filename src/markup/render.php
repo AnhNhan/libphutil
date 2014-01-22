@@ -2,18 +2,6 @@
 
 /**
  * @group markup
- * @deprecated Use phutil_tag() instead.
- */
-function phutil_render_tag($tag, array $attributes = array(), $content = null) {
-  if (is_array($content)) {
-    $content = implode('', $content);
-  }
-  $html = phutil_tag($tag, $attributes, phutil_safe_html($content));
-  return $html->getHTMLContent();
-}
-
-/**
- * @group markup
  */
 function phutil_tag($tag, array $attributes = array(), $content = null) {
   if (!empty($attributes['href'])) {
@@ -45,6 +33,7 @@ function phutil_tag($tag, array $attributes = array(), $content = null) {
     'col'     => true,
     'command' => true,
     'embed'   => true,
+    'frame'   => true,
     'hr'      => true,
     'img'     => true,
     'input'   => true,
@@ -57,27 +46,33 @@ function phutil_tag($tag, array $attributes = array(), $content = null) {
     'wbr'     => true,
   );
 
-  if ($content === null && empty($self_closing_tags[$tag])) {
-    $content = '';
-  }
-
+  $attr_string = '';
   foreach ($attributes as $k => $v) {
     if ($v === null) {
       continue;
     }
     $v = phutil_escape_html($v);
-    $attributes[$k] = ' '.$k.'="'.$v.'"';
+    $attr_string .= ' '.$k.'="'.$v.'"';
   }
-
-  $attributes = implode('', $attributes);
 
   if ($content === null) {
-    return new PhutilSafeHTML('<'.$tag.$attributes.' />');
+    if (isset($self_closing_tags[$tag])) {
+      return new PhutilSafeHTML('<'.$tag.$attr_string.' />');
+    } else {
+      $content = '';
+    }
+  } else {
+    $content = phutil_escape_html($content);
   }
 
-  $content = phutil_escape_html($content);
+  return new PhutilSafeHTML('<'.$tag.$attr_string.'>'.$content.'</'.$tag.'>');
+}
 
-  return new PhutilSafeHTML('<'.$tag.$attributes.'>'.$content.'</'.$tag.'>');
+/**
+ * @group markup
+ */
+function phutil_tag_div($class, $content = null) {
+  return phutil_tag('div', array('class' => $class), $content);
 }
 
 /**
@@ -107,7 +102,11 @@ function phutil_escape_html($string) {
       }
     }
   } else if (is_array($string)) {
-    return implode('', array_map('phutil_escape_html', $string));
+    $result = '';
+    foreach ($string as $item) {
+      $result .= phutil_escape_html($item);
+    }
+    return $result;
   }
 
   return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
@@ -142,7 +141,11 @@ function phutil_safe_html($string) {
  */
 function phutil_implode_html($glue, array $pieces) {
   $glue = phutil_escape_html($glue);
-  $pieces = array_map('phutil_escape_html', $pieces);
+
+  foreach ($pieces as $k => $piece) {
+    $pieces[$k] = phutil_escape_html($piece);
+  }
+
   return phutil_safe_html(implode($glue, $pieces));
 }
 

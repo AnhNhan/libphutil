@@ -7,19 +7,55 @@ final class PhutilRemarkupEngineRemarkupListBlockRule
   extends PhutilRemarkupEngineBlockRule {
 
   /**
+   * This rule must apply before the Code block rule because it needs to
+   * win blocks which begin `  - Lorem ipsum`.
+   */
+  public function getPriority() {
+    return 400;
+  }
+
+  public function getMatchingLineCount(array $lines, $cursor) {
+    $num_lines = 0;
+
+    while (isset($lines[$cursor])) {
+      if (!$num_lines) {
+        if (preg_match(self::START_BLOCK_PATTERN, $lines[$cursor])) {
+          $num_lines++;
+          $cursor++;
+          continue;
+        }
+      } else {
+        if (preg_match(self::CONT_BLOCK_PATTERN, $lines[$cursor])) {
+          $num_lines++;
+          $cursor++;
+          continue;
+        }
+
+        if (strlen(trim($lines[$cursor]))
+          && strlen($lines[$cursor]) !== strlen(ltrim($lines[$cursor]))) {
+          $num_lines++;
+          $cursor++;
+          continue;
+        }
+
+        if (!strlen(trim($lines[$cursor]))) {
+          $num_lines++;
+        }
+      }
+
+      break;
+    }
+
+    return $num_lines;
+  }
+
+  /**
    * The maximum sub-list depth you can nest to. Avoids silliness and blowing
    * the stack.
    */
   const MAXIMUM_LIST_NESTING_DEPTH = 12;
-
-  public function getBlockPattern() {
-    // Support either "-" or "*" or "#" lists.
-    return '/^\s*[-*#]+\s+/';
-  }
-
-  public function shouldMergeBlocks() {
-    return false;
-  }
+  const START_BLOCK_PATTERN = '@^\s*(?:[-*#]+|1[./)])\s+@';
+  const CONT_BLOCK_PATTERN = '@^\s*(?:[-*#]+|[0-9]+[./)])\s+@';
 
   public function markupText($text) {
 
@@ -42,10 +78,12 @@ final class PhutilRemarkupEngineRemarkupListBlockRule
     // un-indent every item by the minimum indentation level for the whole
     // block before we begin parsing.
 
+    $regex = self::START_BLOCK_PATTERN;
     $min_space = PHP_INT_MAX;
-    foreach ($lines as $line) {
+    foreach ($lines as $ii => $line) {
       $matches = null;
-      if (preg_match($this->getBlockPattern(), $line)) {
+      if (preg_match($regex, $line)) {
+        $regex = self::CONT_BLOCK_PATTERN;
         if (preg_match('/^(\s+)/', $line, $matches)) {
           $space = strlen($matches[1]);
         } else {
@@ -54,9 +92,12 @@ final class PhutilRemarkupEngineRemarkupListBlockRule
         $min_space = min($min_space, $space);
       }
     }
+
+    $regex = self::START_BLOCK_PATTERN;
     if ($min_space) {
       foreach ($lines as $key => $line) {
-        if (preg_match($this->getBlockPattern(), $line)) {
+        if (preg_match($regex, $line)) {
+          $regex = self::CONT_BLOCK_PATTERN;
           $lines[$key] = substr($line, $min_space);
         }
       }
@@ -83,8 +124,10 @@ final class PhutilRemarkupEngineRemarkupListBlockRule
     //   );
 
     $item = array();
+    $regex = self::START_BLOCK_PATTERN;
     foreach ($lines as $line) {
-      if (preg_match($this->getBlockPattern(), $line)) {
+      if (preg_match($regex, $line)) {
+        $regex = self::CONT_BLOCK_PATTERN;
         if ($item) {
           $items[] = $item;
           $item = array();
@@ -135,7 +178,7 @@ final class PhutilRemarkupEngineRemarkupListBlockRule
         $depth = 0;
       }
 
-      if (preg_match('/^\s*#/', $item)) {
+      if (preg_match('/^\s*(?:#|[0-9])/', $item)) {
         $style = '#';
       } else {
         $style = '-';
@@ -145,7 +188,7 @@ final class PhutilRemarkupEngineRemarkupListBlockRule
       // has typed only " " or " -"), treat the line as containing no text.
       // This prevents newly added items from rendering with a bullet and
       // the text "-", e.g.
-      $text = preg_replace($this->getBlockPattern(), '', $item);
+      $text = preg_replace(self::CONT_BLOCK_PATTERN, '', $item);
       if ($text == $item) {
         $text = '';
       }

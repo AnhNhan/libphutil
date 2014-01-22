@@ -85,17 +85,20 @@ final class PhutilRemarkupEngineTestCase extends PhutilTestCase {
     $rules[] = new PhutilRemarkupRuleBold();
     $rules[] = new PhutilRemarkupRuleItalic();
     $rules[] = new PhutilRemarkupRuleDel();
+    $rules[] = new PhutilRemarkupRuleUnderline();
 
     $blocks = array();
     $blocks[] = new PhutilRemarkupEngineRemarkupQuotesBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupHeaderBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupHorizontalRuleBlockRule();
-    $blocks[] = new PhutilRemarkupEngineRemarkupListBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupCodeBlockRule();
+    $blocks[] = new PhutilRemarkupEngineRemarkupLiteralBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupNoteBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupTableBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupSimpleTableBlockRule();
     $blocks[] = new PhutilRemarkupEngineRemarkupDefaultBlockRule();
+    $blocks[] = new PhutilRemarkupEngineRemarkupListBlockRule();
+    $blocks[] = new PhutilRemarkupEngineRemarkupInterpreterRule();
 
     foreach ($blocks as $block) {
       if (!($block instanceof PhutilRemarkupEngineRemarkupCodeBlockRule)) {

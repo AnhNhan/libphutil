@@ -35,6 +35,12 @@ final class AphrontMySQLDatabaseConnection
 
     $user = $this->getConfiguration('user');
     $host = $this->getConfiguration('host');
+    $port = $this->getConfiguration('port');
+
+    if ($port) {
+      $host .= ':'.$port;
+    }
+
     $database = $this->getConfiguration('database');
 
     $pass = $this->getConfiguration('pass');
@@ -90,7 +96,7 @@ final class AphrontMySQLDatabaseConnection
       return $results;
     }
 
-    if (!mysql_multi_query(implode('; ', $raw_queries), $conn)) {
+    if (!mysql_multi_query(implode("\n;\n\n", $raw_queries), $conn)) {
       $ex = $this->processResult(false);
       return array_fill_keys(array_keys($raw_queries), $ex);
     }

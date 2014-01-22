@@ -6,12 +6,18 @@
 final class PhutilRemarkupEngineRemarkupSimpleTableBlockRule
   extends PhutilRemarkupEngineBlockRule {
 
-  public function getBlockPattern() {
-    return '/^(\|.*+\n?)+$/';
-  }
+  public function getMatchingLineCount(array $lines, $cursor) {
+    $num_lines = 0;
+    while (isset($lines[$cursor])) {
+      if (preg_match('/^(\|.*+\n?)+$/', $lines[$cursor])) {
+        $num_lines++;
+        $cursor++;
+      } else {
+        break;
+      }
+    }
 
-  public function shouldMergeBlocks() {
-    return false;
+    return $num_lines;
   }
 
   public function markupText($text) {
@@ -31,7 +37,7 @@ final class PhutilRemarkupEngineRemarkupSimpleTableBlockRule
           '(?:'.
             '(?:\\[\\[.*?\\]\\])'. // [[ ... | ... ]], a link
             '|'.
-              '(?:[^|[]*)'.          // Anything but "|" or "[".
+              '(?:[^|[]+)'.          // Anything but "|" or "[".
             '|'.
               '(?:\\[[^\\|[])'.      // "[" followed by anything but "[" or "|"
           ')*'.

@@ -33,6 +33,7 @@ final class AphrontMySQLiDatabaseConnection
 
     $user = $this->getConfiguration('user');
     $host = $this->getConfiguration('host');
+    $port = $this->getConfiguration('port');
     $database = $this->getConfiguration('database');
 
     $pass = $this->getConfiguration('pass');
@@ -40,11 +41,20 @@ final class AphrontMySQLiDatabaseConnection
       $pass = $pass->openEnvelope();
     }
 
+    // If the host is "localhost", the port is ignored and mysqli attempts to
+    // connect over a socket.
+    if ($port) {
+      if ($host === 'localhost' || $host === null) {
+        $host = '127.0.0.1';
+      }
+    }
+
     $conn = @new mysqli(
       $host,
       $user,
       $pass,
-      $database);
+      $database,
+      $port);
 
     $errno = $conn->connect_errno;
     if ($errno) {
@@ -66,29 +76,28 @@ final class AphrontMySQLiDatabaseConnection
   protected function rawQueries(array $raw_queries) {
     $conn = $this->requireConnection();
 
-    if (!$conn->multi_query(implode('; ', $raw_queries))) {
-      $ex = $this->processResult(false);
-      return array_fill_keys(array_keys($raw_queries), $ex);
-    }
-
+    $have_result = false;
     $results = array();
 
-    $processed_all = false;
     foreach ($raw_queries as $key => $raw_query) {
+      if (!$have_result) {
+        // End line in front of semicolon to allow single line comments at the
+        // end of queries.
+        $have_result = $conn->multi_query(implode("\n;\n\n", $raw_queries));
+      } else {
+        $have_result = $conn->next_result();
+      }
+
+      array_shift($raw_queries);
+
       $result = $conn->store_result();
-      if ($this->getErrorCode($conn)) {
-        $result = false;
+      if (!$result && !$this->getErrorCode($conn)) {
+        $result = true;
       }
       $results[$key] = $this->processResult($result);
-
-      if (!$conn->more_results()) {
-        $processed_all = true;
-        break;
-      }
-      $conn->next_result();
     }
 
-    if (!$processed_all) {
+    if ($conn->more_results()) {
       throw new Exception("There are some results left in the result set.");
     }
 
