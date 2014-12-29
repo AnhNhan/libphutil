@@ -1,15 +1,13 @@
 <?php
 
-/**
- * @group testcase
- */
 final class PhutilArgumentParserTestCase extends PhutilTestCase {
 
   public function testBasics() {
     $specs = array(
       array(
         'name' => 'flag',
-      ));
+      ),
+    );
 
     $args = new PhutilArgumentParser(array('bin'));
     $args->parseFull($specs);
@@ -46,7 +44,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
 
     $args = new PhutilArgumentParser(array('bin', '--', '--derp', 'a', 'b'));
     $args->parseFull($specs);
@@ -81,7 +79,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testDuplicateNames() {
@@ -95,12 +93,13 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
           ),
           array(
             'name' => 'x',
-          )));
+          ),
+        ));
     } catch (PhutilArgumentSpecificationException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testDuplicateNamesWithParsePartial() {
@@ -111,17 +110,19 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
         array(
           array(
             'name' => 'x',
-          )));
+          ),
+        ));
       $args->parsePartial(
         array(
           array(
             'name' => 'x',
-          )));
+          ),
+        ));
     } catch (PhutilArgumentSpecificationException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testDuplicateShortAliases() {
@@ -137,12 +138,13 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
           array(
             'name' => 'y',
             'short' => 'x',
-          )));
+          ),
+        ));
     } catch (PhutilArgumentSpecificationException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testDuplicateWildcards() {
@@ -158,12 +160,13 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
           array(
             'name' => 'y',
             'wildcard' => true,
-          )));
+          ),
+        ));
     } catch (PhutilArgumentSpecificationException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testDuplicatePartialWildcards() {
@@ -188,7 +191,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testConflictSpecificationWithUnrecognizedArg() {
@@ -208,7 +211,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testConflictSpecificationWithSelf() {
@@ -228,7 +231,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testUnrecognizedFlag() {
@@ -240,7 +243,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testDuplicateFlag() {
@@ -257,7 +260,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testMissingParameterValue() {
@@ -275,7 +278,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testExtraParameterValue() {
@@ -292,7 +295,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testConflictParameterValue() {
@@ -318,7 +321,7 @@ final class PhutilArgumentParserTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, $caught instanceof Exception);
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testParameterValues() {

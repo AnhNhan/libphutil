@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group xhpast
- */
 function xhpast_is_available() {
   static $available;
   if ($available === null) {
@@ -12,7 +9,7 @@ function xhpast_is_available() {
       list($err, $stdout) = exec_manual('%s --version', $bin);
       if (!$err) {
         $version = trim($stdout);
-        if ($version === "xhpast version 5.5.8/1b") {
+        if ($version === 'xhpast version 5.5.8/1e') {
           $available = true;
         }
       }
@@ -21,10 +18,6 @@ function xhpast_is_available() {
   return $available;
 }
 
-
-/**
- * @group xhpast
- */
 function xhpast_get_binary_path() {
   if (phutil_is_windows()) {
     return dirname(__FILE__).'\\xhpast.exe';
@@ -32,10 +25,6 @@ function xhpast_get_binary_path() {
   return dirname(__FILE__).'/xhpast';
 }
 
-
-/**
- * @group xhpast
- */
 function xhpast_get_build_instructions() {
   $root = phutil_get_library_root('phutil');
   $make = $root.'/../scripts/build_xhpast.sh';
@@ -48,16 +37,23 @@ Your version of 'xhpast' is unbuilt or out of date. Run this script to build it:
 EOHELP;
 }
 
-
-/**
- * @group xhpast
- */
 function xhpast_get_parser_future($data) {
   if (!xhpast_is_available()) {
-    throw new Exception(xhpast_get_build_instructions());
+    try {
+      // Try to build XHPAST automatically. If we can't then just ask the user
+      // to build it themselves.
+      xhpast_build();
+    } catch (CommandException $e) {
+      throw new Exception(xhpast_get_build_instructions());
+    }
   }
   $future = new ExecFuture('%s', xhpast_get_binary_path());
   $future->write($data);
 
   return $future;
+}
+
+function xhpast_build() {
+  $root = phutil_get_library_root('phutil');
+  execx('%s', $root.'/../scripts/build_xhpast.sh');
 }

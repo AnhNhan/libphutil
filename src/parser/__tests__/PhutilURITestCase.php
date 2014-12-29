@@ -2,8 +2,6 @@
 
 /**
  * Test cases for @{class:PhutilURI} parser.
- *
- * @group testcase
  */
 final class PhutilURITestCase extends PhutilTestCase {
 
@@ -43,6 +41,26 @@ final class PhutilURITestCase extends PhutilTestCase {
       'ssh://git@example.com/example/example.git',
       (string)$uri,
       'uri');
+
+
+    $uri = new PhutilURI('http://0@domain.com/');
+    $this->assertEqual('0', $uri->getUser());
+    $this->assertEqual('http://0@domain.com/', (string)$uri);
+
+    $uri = new PhutilURI('http://0:0@domain.com/');
+    $this->assertEqual('0', $uri->getUser());
+    $this->assertEqual('0', $uri->getPass());
+    $this->assertEqual('http://0:0@domain.com/', (string)$uri);
+
+    $uri = new PhutilURI('http://%20:%20@domain.com/');
+    $this->assertEqual(' ', $uri->getUser());
+    $this->assertEqual(' ', $uri->getPass());
+    $this->assertEqual('http://%20:%20@domain.com/', (string)$uri);
+
+    $uri = new PhutilURI('http://%40:%40@domain.com/');
+    $this->assertEqual('@', $uri->getUser());
+    $this->assertEqual('@', $uri->getPass());
+    $this->assertEqual('http://%40:%40@domain.com/', (string)$uri);
   }
 
   public function testURIGeneration() {
@@ -54,6 +72,48 @@ final class PhutilURITestCase extends PhutilTestCase {
   public function testStrictURIParsingOfHosts() {
     $uri = new PhutilURI('http://&amp;/');
     $this->assertEqual('', $uri->getDomain());
+  }
+
+  public function testStrictURIParsingOfLeadingWhitespace() {
+    $uri = new PhutilURI(' http://example.com/');
+    $this->assertEqual('', $uri->getDomain());
+  }
+
+  public function testAppendPath() {
+    $uri = new PhutilURI('http://example.com');
+    $uri->appendPath('foo');
+    $this->assertEqual('http://example.com/foo', $uri->__toString());
+    $uri->appendPath('bar');
+    $this->assertEqual('http://example.com/foo/bar', $uri->__toString());
+
+    $uri = new PhutilURI('http://example.com');
+    $uri->appendPath('/foo/');
+    $this->assertEqual('http://example.com/foo/', $uri->__toString());
+    $uri->appendPath('/bar/');
+    $this->assertEqual('http://example.com/foo/bar/', $uri->__toString());
+
+    $uri = new PhutilURI('http://example.com');
+    $uri->appendPath('foo');
+    $this->assertEqual('http://example.com/foo', $uri->__toString());
+    $uri->appendPath('/bar/');
+    $this->assertEqual('http://example.com/foo/bar/', $uri->__toString());
+  }
+
+  public function testUnusualURIs() {
+    $uri = new PhutilURI('file:///path/to/file');
+    $this->assertEqual('file', $uri->getProtocol(), 'protocol');
+    $this->assertEqual('', $uri->getDomain(), 'domain');
+    $this->assertEqual('/path/to/file', $uri->getPath(), 'path');
+
+    $uri = new PhutilURI('idea://open?x=/');
+    $this->assertEqual('idea', $uri->getProtocol(), 'protocol');
+    $this->assertEqual('open', $uri->getDomain(), 'domain');
+    $this->assertEqual('', $uri->getPath(), 'path');
+    $this->assertEqual(
+      array(
+        'x' => '/',
+      ),
+      $uri->getQueryParams());
   }
 
 }

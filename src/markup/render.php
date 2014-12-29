@@ -1,26 +1,79 @@
 <?php
 
 /**
- * @group markup
+ * Render an HTML tag in a way that treats user content as unsafe by default.
+ *
+ * Tag rendering has some special logic which implements security features:
+ *
+ *   - When rendering `<a>` tags, if the `rel` attribute is not specified, it
+ *     is interpreted as `rel="noreferrer"`.
+ *   - When rendering `<a>` tags, the `href` attribute may not begin with
+ *     `javascript:`.
+ *
+ * These special cases can not be disabled.
+ *
+ * IMPORTANT: The `$tag` attribute and the keys of the `$attributes` array are
+ * trusted blindly, and not escaped. You should not pass user data in these
+ * parameters.
+ *
+ * @param string The name of the tag, like `a` or `div`.
+ * @param map<string, string> A map of tag attributes.
+ * @param wild Content to put in the tag.
+ * @return PhutilSafeHTML Tag object.
  */
 function phutil_tag($tag, array $attributes = array(), $content = null) {
+  // If the `href` attribute is present:
+  //   - make sure it is not a "javascript:" URI. We never permit these.
+  //   - if the tag is an `<a>` and the link is to some foreign resource,
+  //     add `rel="nofollow"` by default.
   if (!empty($attributes['href'])) {
 
     // This might be a URI object, so cast it to a string.
     $href = (string)$attributes['href'];
 
-    // Block 'javascript:' hrefs at the tag level: no well-designed application
-    // should ever use them, and they are a potent attack vector. This function
-    // is deep in the core and performance sensitive, so skip the relatively
-    // expensive preg_match() call if the initial character is '/' (this is the
-    // case with essentially every URI Phabricator renders).
-    if (isset($href[0]) &&
-        ($href[0] != '/') &&
-        preg_match('/^\s*javascript:/i', $href)) {
-      throw new Exception(
-        "Attempting to render a tag with an 'href' attribute that begins ".
-        "with 'javascript:'. This is either a serious security concern or a ".
-        "serious architecture concern. Seek urgent remedy.");
+    if (isset($href[0])) {
+      $is_anchor_href = ($href[0] == '#');
+
+      // Is this a link to a resource on the same domain? The second part of
+      // this excludes "///evil.com/" protocol-relative hrefs.
+      $is_domain_href = ($href[0] == '/') &&
+                        (!isset($href[1]) || $href[1] != '/');
+
+      // If the `rel` attribute is not specified, fill in `rel="noreferrer"`.
+      // Effectively, this serves to make the default behavior for offsite
+      // links "do not send a  referrer", which is broadly desirable. Specifying
+      // some non-null `rel` will skip this.
+      if (!isset($attributes['rel'])) {
+        if (!$is_anchor_href && !$is_domain_href) {
+          if ($tag == 'a') {
+            $attributes['rel'] = 'noreferrer';
+          }
+        }
+      }
+
+      // Block 'javascript:' hrefs at the tag level: no well-designed
+      // application should ever use them, and they are a potent attack vector.
+
+      // This function is deep in the core and performance sensitive, so we're
+      // doing a cheap version of this test first to avoid calling preg_match()
+      // on URIs which begin with '/' or `#`. These cover essentially all URIs
+      // in Phabricator.
+      if (!$is_anchor_href && !$is_domain_href) {
+        // Chrome 33 and IE 11 both interpret "javascript\n:" as a Javascript
+        // URI, and all browsers interpret "  javascript:" as a Javascript URI,
+        // so be aggressive about looking for "javascript:" in the initial
+        // section of the string.
+
+        $normalized_href = preg_replace('([^a-z0-9/:]+)i', '', $href);
+        if (preg_match('/^javascript:/i', $normalized_href)) {
+          throw new Exception(
+            pht(
+              "Attempting to render a tag with an 'href' attribute that ".
+              "begins with 'javascript:'. This is either a serious security ".
+              "concern or a serious architecture concern. Seek urgent ".
+              "remedy."));
+        }
+      }
     }
   }
 
@@ -68,16 +121,10 @@ function phutil_tag($tag, array $attributes = array(), $content = null) {
   return new PhutilSafeHTML('<'.$tag.$attr_string.'>'.$content.'</'.$tag.'>');
 }
 
-/**
- * @group markup
- */
 function phutil_tag_div($class, $content = null) {
   return phutil_tag('div', array('class' => $class), $content);
 }
 
-/**
- * @group markup
- */
 function phutil_escape_html($string) {
   if ($string instanceof PhutilSafeHTML) {
     return $string;
@@ -112,17 +159,12 @@ function phutil_escape_html($string) {
   return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
 }
 
-/**
- * @group markup
- */
 function phutil_escape_html_newlines($string) {
   return PhutilSafeHTML::applyFunction('nl2br', $string);
 }
 
 /**
  * Mark string as safe for use in HTML.
- *
- * @group markup
  */
 function phutil_safe_html($string) {
   if ($string == '') {
@@ -135,9 +177,7 @@ function phutil_safe_html($string) {
 }
 
 /**
- * HTML safe version of implode().
- *
- * @group markup
+ * HTML safe version of `implode()`.
  */
 function phutil_implode_html($glue, array $pieces) {
   $glue = phutil_escape_html($glue);
@@ -150,12 +190,10 @@ function phutil_implode_html($glue, array $pieces) {
 }
 
 /**
- * Format a HTML code. This function behaves like sprintf(), except that all
+ * Format a HTML code. This function behaves like `sprintf()`, except that all
  * the normal conversions (like %s) will be properly escaped.
- *
- * @group markup
  */
-function hsprintf($html/* , ... */) {
+function hsprintf($html /* , ... */) {
   $args = func_get_args();
   array_shift($args);
   return new PhutilSafeHTML(
@@ -185,8 +223,6 @@ function hsprintf($html/* , ... */) {
  *
  * @param   string  Some string.
  * @return  string  URI encoded string, except for '/'.
- *
- * @group markup
  */
 function phutil_escape_uri($string) {
   return str_replace('%2F', '/', rawurlencode($string));
@@ -208,8 +244,6 @@ function phutil_escape_uri($string) {
  *
  * @param   string  Some string.
  * @return  string  URI encoded string that is safe for infix composition.
- *
- * @group markup
  */
 function phutil_escape_uri_path_component($string) {
   return rawurlencode(rawurlencode($string));
@@ -230,7 +264,6 @@ function phutil_escape_uri_path_component($string) {
  *                from @{function:phutil_escape_uri_path_component} and
  *                then accessed via a web server.
  * @return string Original string.
- * @group markup
  */
 function phutil_unescape_uri_path_component($string) {
   return rawurldecode($string);

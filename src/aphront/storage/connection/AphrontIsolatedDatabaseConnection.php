@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group storage
- */
 final class AphrontIsolatedDatabaseConnection
   extends AphrontDatabaseConnection {
 
@@ -26,8 +23,12 @@ final class AphrontIsolatedDatabaseConnection
     return;
   }
 
-  public function escapeString($string) {
+  public function escapeUTF8String($string) {
     return '<S>';
+  }
+
+  public function escapeBinaryString($string) {
+    return '<B>';
   }
 
   public function escapeColumnName($name) {
@@ -80,7 +81,7 @@ final class AphrontIsolatedDatabaseConnection
     $preg_keywords = implode('|', $preg_keywords);
 
     if (!preg_match('/^[\s<>K]*('.$preg_keywords.')\s*/i', $raw_query)) {
-      throw new AphrontQueryNotSupportedException(
+      throw new AphrontNotSupportedQueryException(
         "Database isolation currently only supports some queries. You are ".
         "trying to issue a query which does not begin with an allowed ".
         "keyword (".implode(', ', $keywords)."): '".$raw_query."'");

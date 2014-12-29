@@ -2,8 +2,6 @@
 
 /**
  * Test cases for functions in utils.php.
- *
- * @group testcase
  */
 final class PhutilUtilsTestCase extends PhutilTestCase {
 
@@ -15,9 +13,7 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(
-      true,
-      ($caught instanceof InvalidArgumentException));
+    $this->assertTrue($caught instanceof InvalidArgumentException);
   }
 
 
@@ -41,7 +37,6 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
     $this->assertEqual($expected, $actual);
   }
 
-
   public function testMFilterWithEmptyValueNegateFiltered() {
     $a = new MFilterTestHelper('o', 'p', 'q');
     $b = new MFilterTestHelper('o', '', 'q');
@@ -61,7 +56,6 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
     $this->assertEqual($expected, $actual);
   }
 
-
   public function testIFilterInvalidIndexThrowException() {
     $caught = null;
     try {
@@ -70,36 +64,32 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(
-      true,
-      ($caught instanceof InvalidArgumentException));
+    $this->assertTrue($caught instanceof InvalidArgumentException);
   }
-
 
   public function testIFilterWithEmptyValueFiltered() {
     $list = array(
-      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'b' => array('h' => 'o', 'i' => '', 'j' => 'q',),
-      'c' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'd' => array('h' => 'o', 'i' => 0, 'j' => 'q',),
-      'e' => array('h' => 'o', 'i' => null, 'j' => 'q',),
-      'f' => array('h' => 'o', 'i' => false, 'j' => 'q',),
+      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'b' => array('h' => 'o', 'i' => '', 'j' => 'q'),
+      'c' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'd' => array('h' => 'o', 'i' => 0, 'j' => 'q'),
+      'e' => array('h' => 'o', 'i' => null, 'j' => 'q'),
+      'f' => array('h' => 'o', 'i' => false, 'j' => 'q'),
     );
 
     $actual = ifilter($list, 'i');
     $expected = array(
-      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'c' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
+      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'c' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
     );
 
     $this->assertEqual($expected, $actual);
   }
 
-
   public function testIFilterIndexNotExistsAllFiltered() {
     $list = array(
-      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'b' => array('h' => 'o', 'i' => '', 'j' => 'q',),
+      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'b' => array('h' => 'o', 'i' => '', 'j' => 'q'),
     );
 
      $actual = ifilter($list, 'NoneExisting');
@@ -111,36 +101,35 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
 
   public function testIFilterWithEmptyValueNegateFiltered() {
     $list = array(
-      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'b' => array('h' => 'o', 'i' => '', 'j' => 'q',),
-      'c' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'd' => array('h' => 'o', 'i' => 0, 'j' => 'q',),
-      'e' => array('h' => 'o', 'i' => null, 'j' => 'q',),
-      'f' => array('h' => 'o', 'i' => false, 'j' => 'q',),
+      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'b' => array('h' => 'o', 'i' => '', 'j' => 'q'),
+      'c' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'd' => array('h' => 'o', 'i' => 0, 'j' => 'q'),
+      'e' => array('h' => 'o', 'i' => null, 'j' => 'q'),
+      'f' => array('h' => 'o', 'i' => false, 'j' => 'q'),
     );
 
     $actual = ifilter($list, 'i', true);
     $expected = array(
-      'b' => array('h' => 'o', 'i' => '', 'j' => 'q',),
-      'd' => array('h' => 'o', 'i' => 0, 'j' => 'q',),
-      'e' => array('h' => 'o', 'i' => null, 'j' => 'q',),
-      'f' => array('h' => 'o', 'i' => false, 'j' => 'q',),
+      'b' => array('h' => 'o', 'i' => '', 'j' => 'q'),
+      'd' => array('h' => 'o', 'i' => 0, 'j' => 'q'),
+      'e' => array('h' => 'o', 'i' => null, 'j' => 'q'),
+      'f' => array('h' => 'o', 'i' => false, 'j' => 'q'),
     );
 
     $this->assertEqual($expected, $actual);
   }
 
-
   public function testIFilterIndexNotExistsNotFiltered() {
     $list = array(
-      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'b' => array('h' => 'o', 'i' => '', 'j' => 'q',),
+      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'b' => array('h' => 'o', 'i' => '', 'j' => 'q'),
     );
 
     $actual = ifilter($list, 'NoneExisting', true);
     $expected = array(
-      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q',),
-      'b' => array('h' => 'o', 'i' => '', 'j' => 'q',),
+      'a' => array('h' => 'o', 'i' => 'p', 'j' => 'q'),
+      'b' => array('h' => 'o', 'i' => '', 'j' => 'q'),
     );
 
     $this->assertEqual($expected, $actual);
@@ -172,6 +161,25 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
           array(),
           array(4, 5),
         )));
+
+    $not_valid = array(
+      'scalar' => array(1),
+      'array plus scalar' => array(array(), 1),
+      'null' => array(null),
+    );
+
+    foreach ($not_valid as $key => $invalid_input) {
+      $caught = null;
+      try {
+        array_mergev($invalid_input);
+      } catch (InvalidArgumentException $ex) {
+        $caught = $ex;
+      }
+
+      $this->assertTrue(
+        ($caught instanceof InvalidArgumentException),
+        "array_mergev() invalid on {$key}");
+    }
   }
 
   public function testNonempty() {
@@ -230,11 +238,11 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
 
     $this->assertEqual(
       null,
-      assert_stringlike(""));
+      assert_stringlike(''));
 
     $this->assertEqual(
       null,
-      assert_stringlike("Hello World"));
+      assert_stringlike('Hello World'));
 
     $this->assertEqual(
       null,
@@ -261,14 +269,12 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(
-      true,
-      ($caught instanceof InvalidArgumentException));
+    $this->assertTrue($caught instanceof InvalidArgumentException);
 
     $array = array(
-             "foo" => "bar",
-             "bar" => "foo",
-             );
+      'foo' => 'bar',
+      'bar' => 'foo',
+    );
 
     try {
       assert_stringlike($array);
@@ -276,9 +282,7 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(
-      true,
-      ($caught instanceof InvalidArgumentException));
+    $this->assertTrue($caught instanceof InvalidArgumentException);
 
     $tmp = new TempFile();
     $resource = fopen($tmp, 'r');
@@ -291,10 +295,7 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
 
     fclose($resource);
 
-    $this->assertEqual(
-      true,
-      ($caught instanceof InvalidArgumentException));
-
+    $this->assertTrue($caught instanceof InvalidArgumentException);
   }
 
   public function testCoalesce() {
@@ -355,8 +356,8 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
 
   public function testSplitLines() {
     $retain_cases = array(
-      "" => array(""),
-      "x" => array("x"),
+      '' => array(''),
+      'x' => array('x'),
       "x\n" => array("x\n"),
       "\n" => array("\n"),
       "\n\n\n" => array("\n", "\n", "\n"),
@@ -374,15 +375,15 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
     }
 
     $discard_cases = array(
-      "" => array(""),
-      "x" => array("x"),
-      "x\n" => array("x"),
-      "\n" => array(""),
-      "\n\n\n" => array("", "", ""),
-      "\r\n" => array(""),
-      "x\r\ny\n" => array("x", "y"),
-      "x\ry\nz\r\n" => array("x\ry", "z"),
-      "x\ry\nz\r\n\n" => array("x\ry", "z", ""),
+      '' => array(''),
+      'x' => array('x'),
+      "x\n" => array('x'),
+      "\n" => array(''),
+      "\n\n\n" => array('', '', ''),
+      "\r\n" => array(''),
+      "x\r\ny\n" => array('x', 'y'),
+      "x\ry\nz\r\n" => array("x\ry", 'z'),
+      "x\ry\nz\r\n\n" => array("x\ry", 'z', ''),
     );
 
     foreach ($discard_cases as $input => $expect) {
@@ -391,7 +392,6 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
         phutil_split_lines($input, $retain_endings = false),
         "(Discarded) ".addcslashes($input, "\r\n\\"));
     }
-
   }
 
   public function testArrayFuse() {
@@ -445,8 +445,8 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
 
   public function testLoggableString() {
     $this->assertEqual(
-      "",
-      phutil_loggable_string(""));
+      '',
+      phutil_loggable_string(''));
 
     $this->assertEqual(
       "a\\nb",
@@ -461,6 +461,159 @@ final class PhutilUtilsTestCase extends PhutilTestCase {
       phutil_loggable_string("a\x1Fb"));
   }
 
+  public function testPhutilUnits() {
+    $cases = array(
+      '0 seconds in seconds' => 0,
+      '1 second in seconds' => 1,
+      '2 seconds in seconds' => 2,
+      '100 seconds in seconds' => 100,
+      '2 minutes in seconds' => 120,
+      '1 hour in seconds' => 3600,
+      '1 day in seconds' => 86400,
+      '3 days in seconds' => 259200,
+    );
 
+    foreach ($cases as $input => $expect) {
+      $this->assertEqual(
+        $expect,
+        phutil_units($input),
+        'phutil_units("'.$input.'")');
+    }
+
+    $bad_cases = array(
+      'quack',
+      '3 years in seconds',
+      '1 minute in milliseconds',
+      '1 day in days',
+      '-1 minutes in seconds',
+      '1.5 minutes in seconds',
+    );
+
+    foreach ($bad_cases as $input) {
+      $caught = null;
+      try {
+        phutil_units($input);
+      } catch (InvalidArgumentException $ex) {
+        $caught = $ex;
+      }
+
+      $this->assertTrue(
+        ($caught instanceof InvalidArgumentException),
+        'phutil_units("'.$input.'")');
+    }
+  }
+
+  public function testPhutilJSONDecode() {
+    $valid_cases = array(
+      '{}' => array(),
+      '[]' => array(),
+      '[1, 2]' => array(1, 2),
+      '{"a":"b"}' => array('a' => 'b'),
+    );
+
+    foreach ($valid_cases as $input => $expect) {
+      $result = phutil_json_decode($input);
+      $this->assertEqual($expect, $result, 'phutil_json_decode('.$input.')');
+    }
+
+    $invalid_cases = array(
+      '',
+      '"a"',
+      '{,}',
+      'null',
+      '"null"',
+    );
+
+    foreach ($invalid_cases as $input) {
+      $caught = null;
+      try {
+        phutil_json_decode($input);
+      } catch (Exception $ex) {
+        $caught = $ex;
+      }
+      $this->assertTrue($caught instanceof PhutilJSONParserException);
+    }
+  }
+
+  public function testCensorCredentials() {
+    $cases = array(
+      '' => '',
+      'abc' => 'abc',
+
+      // NOTE: We're liberal about censoring here, since we can't tell
+      // if this is a truncated password at the end of an input string
+      // or a domain name. The version with a "/" isn't censored.
+      'http://example.com' => 'http://xxxxx',
+      'http://example.com/' => 'http://example.com/',
+
+      'http://username@example.com' => 'http://xxxxx@example.com',
+      'http://user:pass@example.com' => 'http://xxxxx@example.com',
+
+      // We censor these because they might be truncated credentials at the end
+      // of the string.
+      'http://user' => 'http://xxxxx',
+      "http://user\n" => "http://xxxxx\n",
+
+      'svn+ssh://user:pass@example.com' => 'svn+ssh://xxxxx@example.com',
+    );
+
+    foreach ($cases as $input => $expect) {
+      $this->assertEqual(
+        $expect,
+        phutil_censor_credentials($input),
+        pht('Credential censoring for: %s', $input));
+    }
+  }
+
+  public function testVarExport() {
+    // Constants
+    $this->assertEqual('null', phutil_var_export(null));
+    $this->assertEqual('true', phutil_var_export(true));
+    $this->assertEqual('false', phutil_var_export(false));
+    $this->assertEqual("'quack'", phutil_var_export('quack'));
+    $this->assertEqual('1234567', phutil_var_export(1234567));
+
+    // Arrays
+    $this->assertEqual(
+      'array()',
+      phutil_var_export(array()));
+    $this->assertEqual(
+      implode("\n", array(
+        'array(',
+        '  1,',
+        '  2,',
+        '  3,',
+        ')',
+      )),
+      phutil_var_export(array(1, 2, 3)));
+    $this->assertEqual(
+      implode("\n", array(
+        'array(',
+        "  'foo' => 'bar',",
+        "  'bar' => 'baz',",
+        ')',
+      )),
+      phutil_var_export(array('foo' => 'bar', 'bar' => 'baz')));
+    $this->assertEqual(
+      implode("\n", array(
+        'array(',
+        "  'foo' => array(",
+        "    'bar' => array(",
+        "      'baz' => array(),",
+        '    ),',
+        '  ),',
+        ')',
+      )),
+      phutil_var_export(
+        array('foo' => array('bar' => array('baz' => array())))));
+
+    // Objects
+    $this->assertEqual(
+      "stdClass::__set_state(array(\n))",
+      phutil_var_export(new stdClass()));
+    $this->assertEqual(
+      "PhutilTestPhobject::__set_state(array(\n))",
+      phutil_var_export(new PhutilTestPhobject()));
+  }
 
 }

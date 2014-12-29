@@ -15,7 +15,6 @@
  *
  * @param   wild Anything.
  * @return  wild Unmodified argument.
- * @group   util
  */
 function id($x) {
   return $x;
@@ -31,9 +30,8 @@ function id($x) {
  * @param   scalar  Index to access in the array.
  * @param   wild    Default value to return if the key is not present in the
  *                  array.
- * @return  wild    If $array[$key] exists, that value is returned. If not,
+ * @return  wild    If `$array[$key]` exists, that value is returned. If not,
  *                  $default is returned without raising a warning.
- * @group   util
  */
 function idx(array $array, $key, $default = null) {
   // isset() is a micro-optimization - it is fast but fails for null values.
@@ -102,10 +100,9 @@ function idx(array $array, $key, $default = null) {
  * @param   string|null   Determines how **keys** will be assigned in the result
  *                        array. Use a string like 'getID' to use the result
  *                        of calling the named method as each object's key, or
- *                        ##null## to preserve the original keys.
+ *                        `null` to preserve the original keys.
  * @return  dict          A dictionary with keys and values derived according
- *                        to whatever you passed as $method and $key_method.
- * @group   util
+ *                        to whatever you passed as `$method` and `$key_method`.
  */
 function mpull(array $list, $method, $key_method = null) {
   $result = array();
@@ -172,14 +169,14 @@ function mpull(array $list, $method, $key_method = null) {
  * @param   string|null   Determines which **values** will appear in the result
  *                        array. Use a string like 'name' to store the value of
  *                        accessing the named property in each value, or
- *                        ##null## to preserve the original objects.
+ *                        `null` to preserve the original objects.
  * @param   string|null   Determines how **keys** will be assigned in the result
  *                        array. Use a string like 'id' to use the result of
  *                        accessing the named property as each object's key, or
- *                        ##null## to preserve the original keys.
+ *                        `null` to preserve the original keys.
  * @return  dict          A dictionary with keys and values derived according
- *                        to whatever you passed as $property and $key_property.
- * @group   util
+ *                        to whatever you passed as `$property` and
+ *                        `$key_property`.
  */
 function ppull(array $list, $property, $key_property = null) {
   $result = array();
@@ -227,8 +224,7 @@ function ppull(array $list, $property, $key_property = null) {
  *                        array. Use a scalar to select that index from each
  *                        array, or null to preserve the array keys.
  * @return  dict          A dictionary with keys and values derived according
- *                        to whatever you passed for $index and $key_index.
- * @group   util
+ *                        to whatever you passed for `$index` and `$key_index`.
  */
 function ipull(array $list, $index, $key_index = null) {
   $result = array();
@@ -277,7 +273,6 @@ function ipull(array $list, $index, $key_index = null) {
  *                  groups.
  * @return  dict    Dictionary mapping distinct method returns to lists of
  *                  all objects which returned that value.
- * @group   util
  */
 function mgroup(array $list, $by /* , ... */) {
   $map = mpull($list, $by);
@@ -318,7 +313,6 @@ function mgroup(array $list, $by /* , ... */) {
  *                  groups.
  * @return  dict    Dictionary mapping distinct index values to lists of
  *                  all objects which had that value at the index.
- * @group   util
  */
 function igroup(array $list, $by /* , ... */) {
   $map = ipull($list, $by);
@@ -348,13 +342,13 @@ function igroup(array $list, $by /* , ... */) {
 
 /**
  * Sort a list of objects by the return value of some method. In PHP, this is
- * often vastly more efficient than ##usort()## and similar.
+ * often vastly more efficient than `usort()` and similar.
  *
  *    // Sort a list of Duck objects by name.
  *    $sorted = msort($ducks, 'getName');
  *
  * It is usually significantly more efficient to define an ordering method
- * on objects and call ##msort()## than to write a comparator. It is often more
+ * on objects and call `msort()` than to write a comparator. It is often more
  * convenient, as well.
  *
  * NOTE: This method does not take the list by reference; it returns a new list.
@@ -363,7 +357,6 @@ function igroup(array $list, $by /* , ... */) {
  * @param   string  Name of a method to call on each object; the return values
  *                  will be used to sort the list.
  * @return  list    Objects ordered by the return values of the method calls.
- * @group   util
  */
 function msort(array $list, $method) {
   $surrogate = mpull($list, $method);
@@ -388,7 +381,6 @@ function msort(array $list, $method) {
  * @param   string  Index to access on each object; the return values
  *                  will be used to sort the list.
  * @return  list    Arrays ordered by the index values.
- * @group   util
  */
 function isort(array $list, $index) {
   $surrogate = ipull($list, $index);
@@ -406,7 +398,7 @@ function isort(array $list, $index) {
 
 /**
  * Filter a list of objects by executing a method across all the objects and
- * filter out the ones wth empty() results. this function works just like
+ * filter out the ones with empty() results. this function works just like
  * @{function:ifilter}, except that it operates on a list of objects instead
  * of a list of arrays.
  *
@@ -424,9 +416,7 @@ function isort(array $list, $index) {
  * @param  string       A method name.
  * @param  bool         Optionally, pass true to drop objects which pass the
  *                      filter instead of keeping them.
- *
- * @return array   List of objects which pass the filter.
- * @group  util
+ * @return array        List of objects which pass the filter.
  */
 function mfilter(array $list, $method, $negate = false) {
   if (!is_string($method)) {
@@ -471,9 +461,7 @@ function mfilter(array $list, $method, $negate = false) {
  * @param  scalar       The index.
  * @param  bool         Optionally, pass true to drop arrays which pass the
  *                      filter instead of keeping them.
- *
- * @return array   List of arrays which pass the filter.
- * @group  util
+ * @return array        List of arrays which pass the filter.
  */
 function ifilter(array $list, $index, $negate = false) {
   if (!is_scalar($index)) {
@@ -513,7 +501,6 @@ function ifilter(array $list, $index, $negate = false) {
  * @return dict    Dictionary of only those key-value pairs where the key was
  *                 present in the list of keys to select. Ordering is
  *                 determined by the list order.
- * @group   util
  */
 function array_select_keys(array $dict, array $keys) {
   $result = array();
@@ -527,13 +514,12 @@ function array_select_keys(array $dict, array $keys) {
 
 
 /**
- * Checks if all values of array are instances of the passed class.
- * Throws InvalidArgumentException if it isn't true for any value.
+ * Checks if all values of array are instances of the passed class. Throws
+ * `InvalidArgumentException` if it isn't true for any value.
  *
  * @param  array
  * @param  string  Name of the class or 'array' to check arrays.
  * @return array   Returns passed array.
- * @group   util
  */
 function assert_instances_of(array $arr, $class) {
   $is_array = !strcasecmp($class, 'array');
@@ -590,16 +576,15 @@ function assert_stringlike($parameter) {
   }
 
   throw new InvalidArgumentException(
-    "Argument must be scalar or object which implements __toString()!");
+    'Argument must be scalar or object which implements __toString()!');
 }
 
 /**
- * Returns the first argument which is not strictly null, or ##null## if there
+ * Returns the first argument which is not strictly null, or `null` if there
  * are no such arguments. Identical to the MySQL function of the same name.
  *
  * @param  ...         Zero or more arguments of any type.
- * @return mixed       First non-##null## arg, or null if no such arg exists.
- * @group  util
+ * @return mixed       First non-`null` arg, or null if no such arg exists.
  */
 function coalesce(/* ... */) {
   $args = func_get_args();
@@ -614,16 +599,15 @@ function coalesce(/* ... */) {
 
 /**
  * Similar to @{function:coalesce}, but less strict: returns the first
- * non-##empty()## argument, instead of the first argument that is strictly
- * non-##null##. If no argument is nonempty, it returns the last argument. This
+ * non-`empty()` argument, instead of the first argument that is strictly
+ * non-`null`. If no argument is nonempty, it returns the last argument. This
  * is useful idiomatically for setting defaults:
  *
  *   $display_name = nonempty($user_name, $full_name, "Anonymous");
  *
  * @param  ...         Zero or more arguments of any type.
- * @return mixed       First non-##empty()## arg, or last arg if no such arg
+ * @return mixed       First non-`empty()` arg, or last arg if no such arg
  *                     exists, or null if you passed in zero args.
- * @group  util
  */
 function nonempty(/* ... */) {
   $args = func_get_args();
@@ -640,7 +624,7 @@ function nonempty(/* ... */) {
 
 /**
  * Invokes the "new" operator with a vector of arguments. There is no way to
- * call_user_func_array() on a class constructor, so you can instead use this
+ * `call_user_func_array()` on a class constructor, so you can instead use this
  * function:
  *
  *   $obj = newv($class_name, $argv);
@@ -655,7 +639,7 @@ function nonempty(/* ... */) {
  *
  *   - Build a fake serialized object and unserialize it.
  *   - Invoke the constructor twice.
- *   - just use eval() lol
+ *   - just use `eval()` lol
  *
  * These are really bad solutions to the problem because they can have side
  * effects (e.g., __wakeup()) and give you an object in an otherwise impossible
@@ -663,15 +647,14 @@ function nonempty(/* ... */) {
  *
  * If you own the classes you're doing this for, you should consider whether
  * or not restructuring your code (for instance, by creating static
- * construction methods) might make it cleaner before using newv(). Static
- * constructors can be invoked with call_user_func_array(), and may give your
+ * construction methods) might make it cleaner before using `newv()`. Static
+ * constructors can be invoked with `call_user_func_array()`, and may give your
  * class a cleaner and more descriptive API.
  *
  * @param  string  The name of a class.
  * @param  list    Array of arguments to pass to its constructor.
  * @return obj     A new object of the specified class, constructed by passing
  *                 the argument vector to its constructor.
- * @group util
  */
 function newv($class_name, array $argv) {
   $reflector = new ReflectionClass($class_name);
@@ -690,20 +673,18 @@ function newv($class_name, array $argv) {
  *
  * @param    array Array to retrieve the first element from.
  * @return   wild  The first value of the array.
- * @group util
  */
 function head(array $arr) {
   return reset($arr);
 }
 
 /**
- * Returns the last element of an array. This is exactly like end() except
+ * Returns the last element of an array. This is exactly like `end()` except
  * that it won't warn you if you pass some non-referencable array to
  * it -- e.g., the result of some other array operation.
  *
  * @param    array Array to retrieve the last element from.
  * @return   wild  The last value of the array.
- * @group util
  */
 function last(array $arr) {
   return end($arr);
@@ -714,7 +695,6 @@ function last(array $arr) {
  *
  * @param    array       Array to retrieve the first key from.
  * @return   int|string  The first key of the array.
- * @group util
  */
 function head_key(array $arr) {
   reset($arr);
@@ -726,7 +706,6 @@ function head_key(array $arr) {
  *
  * @param    array       Array to retrieve the last key from.
  * @return   int|string  The last key of the array.
- * @group util
  */
 function last_key(array $arr) {
   end($arr);
@@ -746,11 +725,21 @@ function last_key(array $arr) {
  *
  * @param list Vector of arrays to merge.
  * @return list Arrays, merged with array_merge() semantics.
- * @group util
  */
 function array_mergev(array $arrayv) {
   if (!$arrayv) {
     return array();
+  }
+
+  foreach ($arrayv as $key => $item) {
+    if (!is_array($item)) {
+      throw new InvalidArgumentException(
+        pht(
+          'Expected all items passed to array_mergev() to be arrays, but '.
+          'argument with key "%s" has type "%s".',
+          $key,
+          gettype($item)));
+    }
   }
 
   return call_user_func_array('array_merge', $arrayv);
@@ -767,7 +756,6 @@ function array_mergev(array $arrayv) {
  * @param string Block of text to be split into lines.
  * @param bool If true, retain line endings in result strings.
  * @return list List of lines.
- * @group util
  */
 function phutil_split_lines($corpus, $retain_endings = true) {
   if (!strlen($corpus)) {
@@ -812,7 +800,6 @@ function phutil_split_lines($corpus, $retain_endings = true) {
  *
  * @param   list  List of scalars.
  * @return  dict  Dictionary with inputs mapped to themselves.
- * @group util
  */
 function array_fuse(array $list) {
   if ($list) {
@@ -839,7 +826,6 @@ function array_fuse(array $list) {
  * @param wild  Element to interleave.
  * @param list  List of elements to be interleaved.
  * @return list Original list with the new element interleaved.
- * @group util
  */
 function array_interleave($interleave, array $array) {
   $result = array();
@@ -851,9 +837,6 @@ function array_interleave($interleave, array $array) {
   return $result;
 }
 
-/**
- * @group library
- */
 function phutil_is_windows() {
   // We can also use PHP_OS, but that's kind of sketchy because it returns
   // "WINNT" for Windows 7 and "Darwin" for Mac OS X. Practically, testing for
@@ -861,9 +844,6 @@ function phutil_is_windows() {
   return (DIRECTORY_SEPARATOR != '/');
 }
 
-/**
- * @group library
- */
 function phutil_is_hiphop_runtime() {
   return (array_key_exists('HPHP', $_ENV) && $_ENV['HPHP'] === 1);
 }
@@ -873,12 +853,11 @@ function phutil_is_hiphop_runtime() {
  * before the request completes abruptly.
  *
  * @param int|string $status
- * @group library
  */
 function phutil_exit($status = 0) {
   $event = new PhutilEvent(
     PhutilEventType::TYPE_WILLEXITABRUPTLY,
-    array("status" => $status));
+    array('status' => $status));
   PhutilEventEngine::dispatchEvent($event);
 
   exit($status);
@@ -899,7 +878,7 @@ function phutil_loggable_string($string) {
   $result = '';
 
   static $c_map = array(
-    "\\" => '\\\\',
+    '\\' => '\\\\',
     "\n" => '\\n',
     "\r" => '\\r',
     "\t" => '\\t',
@@ -987,4 +966,158 @@ function phutil_fwrite_nonblocking_stream($stream, $bytes) {
   // then immediately performed another 0-length write. Conclude that the pipe
   // is broken and return `false`.
   return false;
+}
+
+
+/**
+ * Convert a human-readable unit description into a numeric one. This function
+ * allows you to replace this:
+ *
+ *   COUNTEREXAMPLE
+ *   $ttl = (60 * 60 * 24 * 30); // 30 days
+ *
+ * ...with this:
+ *
+ *   $ttl = phutil_units('30 days in seconds');
+ *
+ * ...which is self-documenting and difficult to make a mistake with.
+ *
+ * @param   string  Human readable description of a unit quantity.
+ * @return  int     Quantity of specified unit.
+ */
+function phutil_units($description) {
+  $matches = null;
+  if (!preg_match('/^(\d+) (\w+) in (\w+)$/', $description, $matches)) {
+    throw new InvalidArgumentException(
+      pht(
+        'Unable to parse unit specification (expected a specification in the '.
+        'form "5 days in seconds"): %s',
+        $description));
+  }
+
+  $quantity = (int)$matches[1];
+  $src_unit = $matches[2];
+  $dst_unit = $matches[3];
+
+  switch ($dst_unit) {
+    case 'seconds':
+      switch ($src_unit) {
+        case 'second':
+        case 'seconds':
+          $factor = 1;
+          break;
+        case 'minute':
+        case 'minutes':
+          $factor = 60;
+          break;
+        case 'hour':
+        case 'hours':
+          $factor = 60 * 60;
+          break;
+        case 'day':
+        case 'days':
+          $factor = 60 * 60 * 24;
+          break;
+        default:
+          throw new InvalidArgumentException(
+            pht(
+              'This function can not convert from the unit "%s".',
+              $src_unit));
+      }
+      break;
+    default:
+      throw new InvalidArgumentException(
+        pht(
+          'This function can not convert into the unit "%s".',
+          $dst_unit));
+  }
+
+  return $quantity * $factor;
+}
+
+
+/**
+ * Decode a JSON dictionary.
+ *
+ * @param   string    A string which ostensibly contains a JSON-encoded list or
+ *                    dictionary.
+ * @return  mixed     Decoded list/dictionary.
+ */
+function phutil_json_decode($string) {
+  $result = @json_decode($string, true);
+
+  if (!is_array($result)) {
+    // Failed to decode the JSON. Try to use @{class:PhutilJSONParser} instead.
+    // This will probably fail, but will throw a useful exception.
+    $parser = new PhutilJSONParser();
+    $result = $parser->parse($string);
+  }
+
+  return $result;
+}
+
+
+/**
+ * Attempt to censor any plaintext credentials from a string.
+ *
+ * The major use case here is to censor usernames and passwords from command
+ * output. For example, when `git fetch` fails, the output includes credentials
+ * for authenticated HTTP remotes.
+ *
+ * @param   string  Some block of text.
+ * @return  string  A similar block of text, but with credentials that could
+ *                  be identified censored.
+ */
+function phutil_censor_credentials($string) {
+  return preg_replace(',(?<=://)([^/@\s]+)(?=@|$),', 'xxxxx', $string);
+}
+
+
+/**
+ * Returns a parsable string representation of a variable.
+ *
+ * This function is intended to behave similarly to PHP's `var_export` function,
+ * but the output is intended to follow our style conventions.
+ *
+ * @param  wild    The variable you want to export.
+ * @return string
+ */
+function phutil_var_export($var) {
+  // `var_export(null, true)` returns `"NULL"` (in uppercase).
+  if ($var === null) {
+    return 'null';
+  }
+
+  // PHP's `var_export` doesn't format arrays very nicely. In particular:
+  //
+  //   - An empty array is split over two lines (`"array (\n)"`).
+  //   - A space separates "array" and the first opening brace.
+  //   - Non-associative arrays are returned as associative arrays with an
+  //     integer key.
+  //
+  if (is_array($var)) {
+    if (count($var) === 0) {
+      return 'array()';
+    }
+
+    // Don't show keys for non-associative arrays.
+    $show_keys = (array_keys($var) !== range(0, count($var) - 1));
+
+    $output = array();
+    $output[] = 'array(';
+
+    foreach ($var as $key => $value) {
+      // Adjust the indentation of the value.
+      $value = str_replace("\n", "\n  ", phutil_var_export($value));
+      $output[] = '  '.
+        ($show_keys ? var_export($key, true).' => ' : '').
+        $value.',';
+    }
+
+    $output[] = ')';
+    return implode("\n", $output);
+  }
+
+  // Let PHP handle everything else.
+  return var_export($var, true);
 }

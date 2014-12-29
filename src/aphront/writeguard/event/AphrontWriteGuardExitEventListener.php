@@ -2,10 +2,8 @@
 /**
  * Listener for "will exit abruptly" events. Shuts down the attached write guard
  * before request exits.
- *
- * @group aphront
  */
-class AphrontWriteGuardExitEventListener extends PhutilEventListener{
+final class AphrontWriteGuardExitEventListener extends PhutilEventListener {
 
   public function register() {
     $this->listen(PhutilEventType::TYPE_WILLEXITABRUPTLY);
@@ -18,4 +16,5 @@ class AphrontWriteGuardExitEventListener extends PhutilEventListener{
       AphrontWriteGuard::getInstance()->disposeAbruptly();
     }
   }
+
 }

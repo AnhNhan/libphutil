@@ -3,8 +3,6 @@
 /**
  * Simple event store for service calls, so they can be printed to stdout or
  * displayed in a debug console.
- *
- * @group util
  */
 final class PhutilServiceProfiler {
 
@@ -14,8 +12,7 @@ final class PhutilServiceProfiler {
   private $logSize = 0;
   private $discardMode = false;
 
-  private function __construct() {
-  }
+  private function __construct() {}
 
   public function enableDiscardMode() {
     $this->discardMode = true;
@@ -111,7 +108,7 @@ final class PhutilServiceProfiler {
           }
           break;
         case 'http':
-          $desc = $data['uri'];
+          $desc = phutil_censor_credentials($data['uri']);
           break;
         case 'lint':
           $desc = $data['linter'];

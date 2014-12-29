@@ -2,8 +2,6 @@
 
 /**
  * Basic URI parser object.
- *
- * @group util
  */
 final class PhutilURI {
 
@@ -17,7 +15,30 @@ final class PhutilURI {
   private $fragment;
 
   public function __construct($uri) {
-    $parts = parse_url($uri);
+    $uri = (string)$uri;
+
+    $matches = null;
+    if (preg_match('(^([^/:]*://[^/]*)(\\?.*)\z)', $uri, $matches)) {
+      // If the URI is something like `idea://open?file=/path/to/file`, the
+      // `parse_url()` function will parse `open?file=` as the host. This is
+      // not the expected result. Break the URI into two pieces, stick a slash
+      // in between them, parse that, then remove the path. See T6106.
+
+      $parts = parse_url($matches[1].'/'.$matches[2]);
+      unset($parts['path']);
+    } else {
+      $parts = parse_url($uri);
+    }
+
+    // The parse_url() call will accept URIs with leading whitespace, but many
+    // other tools (like git) will not. See T4913 for a specific example. If
+    // the input string has leading whitespace, fail the parse.
+    if ($parts) {
+      if (ltrim($uri) != $uri) {
+        $parts = false;
+      }
+    }
+
 
     // NOTE: `parse_url()` is very liberal about host names; fail the parse if
     // the host looks like garbage.
@@ -35,8 +56,8 @@ final class PhutilURI {
     // stringyness is to preserve API compatibility and
     // allow the tests to continue passing
     $this->protocol = idx($parts, 'scheme', '');
-    $this->user     = idx($parts, 'user', '');
-    $this->pass     = idx($parts, 'pass', '');
+    $this->user     = rawurldecode(idx($parts, 'user', ''));
+    $this->pass     = rawurldecode(idx($parts, 'pass', ''));
     $this->domain   = idx($parts, 'host', '');
     $this->port     = (string)idx($parts, 'port', '');
     $this->path     = idx($parts, 'path', '');
@@ -54,10 +75,11 @@ final class PhutilURI {
       $protocol = nonempty($this->protocol, 'http');
 
       $auth = '';
-      if ($this->user && $this->pass) {
-        $auth = $this->user.':'.$this->pass.'@';
-      } else if ($this->user) {
-        $auth = $this->user.'@';
+      if (strlen($this->user) && strlen($this->pass)) {
+        $auth = phutil_escape_uri($this->user).':'.
+                phutil_escape_uri($this->pass).'@';
+      } else if (strlen($this->user)) {
+        $auth = phutil_escape_uri($this->user).'@';
       }
 
       $prefix = $protocol.'://'.$auth.$this->domain;
@@ -133,6 +155,22 @@ final class PhutilURI {
     return $this;
   }
 
+  public function appendPath($path) {
+    $first = strlen($path) ? $path[0] : null;
+    $last  = strlen($this->path) ? $this->path[strlen($this->path) - 1] : null;
+
+    if (!$this->path) {
+      return $this->setPath($path);
+    } else if ($first === '/' && $last === '/') {
+      $path = substr($path, 1);
+    } else if ($first !== '/' && $last !== '/') {
+      $path = '/'.$path;
+    }
+
+    $this->path .= $path;
+    return $this;
+  }
+
   public function getPath() {
     return $this->path;
   }
@@ -171,4 +209,3 @@ final class PhutilURI {
   }
 
 }
-

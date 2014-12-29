@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group testcase
- */
 final class PhutilTranslatorTestCase extends PhutilTestCase {
 
   public function testEnglish() {
@@ -108,7 +105,7 @@ final class PhutilTranslatorTestCase extends PhutilTestCase {
       array(
         'June' => 'correct',
         '21' => 'wrong',
-        'F' => 'wrong'
+        'F' => 'wrong',
       ));
     $this->assertEqual('correct', $translator->translateDate('F', $date));
     $this->assertEqual('correct 21', $translator->translateDate('F d', $date));
@@ -141,7 +138,7 @@ final class PhutilTranslatorTestCase extends PhutilTestCase {
     $translator->addTranslations(
       array(
         ',' => ' ',
-        '.' => ','
+        '.' => ',',
       ));
     $this->assertEqual('1 234', $translator->formatNumber(1234));
     $this->assertEqual('1 234,5', $translator->formatNumber(1234.5, 1));
@@ -198,7 +195,7 @@ final class PhutilTranslatorTestCase extends PhutilTestCase {
     $translator = new PhutilTranslator();
     foreach ($tests as $original => $translations) {
       foreach ($translations as $translation => $expect) {
-        $valid = ($expect ? "valid" : "invalid");
+        $valid = ($expect ? 'valid' : 'invalid');
         $this->assertEqual(
           $expect,
           $translator->validateTranslation($original, $translation),
@@ -232,9 +229,7 @@ final class PhutilTranslatorTestCase extends PhutilTestCase {
       $string,
       $who,
       $when);
-    $this->assertEqual(
-      true,
-      ($translation instanceof PhutilSafeHTML));
+    $this->assertTrue($translation instanceof PhutilSafeHTML);
     $this->assertEqual(
       '<span>Abraham</span> awoke <strong>suddenly</strong> at &lt;4 AM&gt;.',
       $translation->getHTMLContent());

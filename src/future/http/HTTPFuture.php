@@ -2,10 +2,10 @@
 
 /**
  * Socket-based HTTP future, for making HTTP requests using future semantics.
- * This is an alternative to :CURLFuture which has better resolution behavior
- * (select()-based wait instead of busy wait) but fewer features. You should
- * prefer this class to :CURLFuture unless you need its advanced features (like
- * HTTP/1.1, chunked transfer encoding, gzip, etc.).
+ * This is an alternative to @{class:CURLFuture} which has better resolution
+ * behavior (select()-based wait instead of busy wait) but fewer features. You
+ * should prefer this class to @{class:CURLFuture} unless you need its advanced
+ * features (like HTTP/1.1, chunked transfer encoding, gzip, etc.).
  *
  * Example Usage
  *
@@ -19,11 +19,9 @@
  *         $response_body,
  *         $headers) = $future->resolve();
  *
- * Prefer resolvex() to resolve() as the former throws
- * @{class:HTTPFutureResponseStatusHTTP} on failures, which includes an
+ * Prefer @{method:resolvex} to @{method:resolve} as the former throws
+ * @{class:HTTPFutureHTTPResponseStatus} on failures, which includes an
  * informative exception message.
- *
- * @group futures
  */
 final class HTTPFuture extends BaseHTTPFuture {
 
@@ -66,7 +64,7 @@ final class HTTPFuture extends BaseHTTPFuture {
 
     if (isset($parts['user']) || isset($parts['pass'])) {
       throw new Exception(
-        "HTTP Basic Auth is not supported by HTTPFuture.");
+        'HTTP Basic Auth is not supported by HTTPFuture.');
     }
 
     if (isset($parts['path'])) {
@@ -145,7 +143,7 @@ final class HTTPFuture extends BaseHTTPFuture {
       if (strlen($this->writeBuffer)) {
         $bytes = @fwrite($this->socket, $this->writeBuffer);
         if ($bytes === false) {
-          throw new Exception("Failed to write to buffer.");
+          throw new Exception('Failed to write to buffer.');
         } else if ($bytes) {
           $this->writeBuffer = substr($this->writeBuffer, $bytes);
         }
@@ -160,7 +158,7 @@ final class HTTPFuture extends BaseHTTPFuture {
       }
 
       if ($data === false) {
-        throw new Exception("Failed to read socket.");
+        throw new Exception('Failed to read socket.');
       }
     }
 
@@ -168,7 +166,6 @@ final class HTTPFuture extends BaseHTTPFuture {
   }
 
   private function buildSocket() {
-
     $errno = null;
     $errstr = null;
     $socket = @stream_socket_client(
@@ -181,13 +178,13 @@ final class HTTPFuture extends BaseHTTPFuture {
     if (!$socket) {
       $this->stateReady = true;
       $this->result = $this->buildErrorResult(
-        HTTPFutureResponseStatusTransport::ERROR_CONNECTION_FAILED);
+        HTTPFutureTransportResponseStatus::ERROR_CONNECTION_FAILED);
       return null;
     }
 
     $ok = stream_set_blocking($socket, 0);
     if (!$ok) {
-      throw new Exception("Failed to set stream nonblocking.");
+      throw new Exception('Failed to set stream nonblocking.');
     }
 
     $this->writeBuffer = $this->buildHTTPRequest();
@@ -196,7 +193,6 @@ final class HTTPFuture extends BaseHTTPFuture {
   }
 
   private function checkSocket() {
-
     $timeout = false;
     $now = microtime(true);
     if (($now - $this->stateStartTime) > $this->getTimeout()) {
@@ -211,13 +207,13 @@ final class HTTPFuture extends BaseHTTPFuture {
 
     if ($timeout) {
       $this->result = $this->buildErrorResult(
-        HTTPFutureResponseStatusTransport::ERROR_TIMEOUT);
+        HTTPFutureTransportResponseStatus::ERROR_TIMEOUT);
     } else if (!$this->stateConnected) {
       $this->result = $this->buildErrorResult(
-        HTTPFutureResponseStatusTransport::ERROR_CONNECTION_REFUSED);
+        HTTPFutureTransportResponseStatus::ERROR_CONNECTION_REFUSED);
     } else if (!$this->stateWriteComplete) {
       $this->result = $this->buildErrorResult(
-        HTTPFutureResponseStatusTransport::ERROR_CONNECTION_FAILED);
+        HTTPFutureTransportResponseStatus::ERROR_CONNECTION_FAILED);
     } else {
       $this->result = $this->parseRawHTTPResponse($this->response);
     }
@@ -230,9 +226,10 @@ final class HTTPFuture extends BaseHTTPFuture {
 
   private function buildErrorResult($error) {
     return array(
-      $status = new HTTPFutureResponseStatusTransport($error, $this->getURI()),
+      $status = new HTTPFutureTransportResponseStatus($error, $this->getURI()),
       $body = null,
-      $headers = array());
+      $headers = array(),
+    );
   }
 
   private function buildHTTPRequest() {
@@ -257,7 +254,8 @@ final class HTTPFuture extends BaseHTTPFuture {
         $data = http_build_query($data, '', '&')."\r\n";
         $add_headers[] = array(
           'Content-Type',
-          'application/x-www-form-urlencoded');
+          'application/x-www-form-urlencoded',
+        );
       }
     }
 
@@ -265,18 +263,21 @@ final class HTTPFuture extends BaseHTTPFuture {
 
     $add_headers[] = array(
       'Content-Length',
-      $length);
+      $length,
+    );
 
     if (!$this->getHeaders('User-Agent')) {
       $add_headers[] = array(
         'User-Agent',
-        $this->getDefaultUserAgent());
+        $this->getDefaultUserAgent(),
+      );
     }
 
     if (!$this->getHeaders('Host')) {
       $add_headers[] = array(
         'Host',
-        $this->host);
+        $this->host,
+      );
     }
 
     $headers = array_merge($this->getHeaders(), $add_headers);

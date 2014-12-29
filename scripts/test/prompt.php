@@ -1,8 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-$root = dirname(dirname(dirname(__FILE__)));
-require_once $root.'/scripts/__init_script__.php';
+require_once dirname(__FILE__).'/../__init_script__.php';
 
 $args = new PhutilArgumentParser($argv);
 $args->setTagline('test console prompting');
@@ -24,7 +23,7 @@ $args->parse(
       'name'    => 'prompt',
       'param'   => 'text',
       'default' => 'Enter some text:',
-      'help'    => 'Change the prompt text to __text__.'
+      'help'    => 'Change the prompt text to __text__.',
     ),
   ));
 

@@ -118,28 +118,28 @@ final class PhutilParserGenerator {
 
   public function getEOFSymbol() {
     if ($this->eofSymbol === null) {
-      throw new Exception("Call processGrammar() before getEOFSymbol()!");
+      throw new Exception('Call processGrammar() before getEOFSymbol()!');
     }
     return $this->eofSymbol;
   }
 
   public function getInitSymbol() {
     if ($this->initSymbol === null) {
-      throw new Exception("Call processGrammar() before getInitSymbol()!");
+      throw new Exception('Call processGrammar() before getInitSymbol()!');
     }
     return $this->initSymbol;
   }
 
   public function getEpsilonSymbol() {
     if ($this->epsilonSymbol === null) {
-      throw new Exception("Call processGrammar() before getEpsilonSymbol()!");
+      throw new Exception('Call processGrammar() before getEpsilonSymbol()!');
     }
     return $this->epsilonSymbol;
   }
 
   public function getEndSymbol() {
     if ($this->endSymbol === null) {
-      throw new Exception("Call processGrammar() before getEndSymbol()!");
+      throw new Exception('Call processGrammar() before getEndSymbol()!');
     }
     return $this->endSymbol;
   }
@@ -207,7 +207,7 @@ final class PhutilParserGenerator {
         } else {
           foreach ($variant as $symbol) {
             if (($symbol === null) && count($variant) > 1) {
-              throw new PhutilParserGeneratorInvalidRuleException(
+              throw new PhutilInvalidRuleParserGeneratorException(
                 "Rule '{$rule_name}' contains a production '{$vkey}' which ".
                 "is nonempty but has a null in it. A rule with other symbols ".
                 "may not contain null.");
@@ -237,7 +237,7 @@ final class PhutilParserGenerator {
             continue;
           }
           $production_string = implode(' ', $production);
-          throw new PhutilParserGeneratorUnknownSymbolException(
+          throw new PhutilUnknownSymbolParserGeneratorException(
             "Symbol '{$symbol}' in production '{$production_name}' ".
             "('{$production_string}') of rule '{$rule}' does not name a rule ".
             "or terminal. Did you misspell a symbol, fail to specify a ".
@@ -254,7 +254,7 @@ final class PhutilParserGenerator {
   private function validateStartRule() {
     $start_rule = $this->getStartRule();
     if (!$this->isRule($start_rule)) {
-      throw new PhutilParserGeneratorUnknownSymbolException(
+      throw new PhutilUnknownSymbolParserGeneratorException(
         "Start rule '{$start_rule}' does not appear in the rules for the ".
         "grammar. Use setStartRule() to choose a different start rule, or ".
         "add a rule named '{$start_rule}'.");
@@ -318,8 +318,8 @@ final class PhutilParserGenerator {
     if ($missing) {
       $missing_terminals = array_keys($missing);
       $missing_terminals = implode(', ', $missing_terminals);
-      throw new PhutilParserGeneratorUnreachableTerminalException(
-        "Some terminals do not appear in any rule: ".
+      throw new PhutilUnreachableTerminalParserGeneratorException(
+        'Some terminals do not appear in any rule: '.
         $missing_terminals);
     }
   }
@@ -338,8 +338,8 @@ final class PhutilParserGenerator {
     if ($missing) {
       $missing_rules = array_keys($missing);
       $missing_rules = implode(', ', $missing_rules);
-      throw new PhutilParserGeneratorUnreachableRuleException(
-        "Some rules can never be reached from any production: ".
+      throw new PhutilUnreachableRuleParserGeneratorException(
+        'Some rules can never be reached from any production: '.
         $missing_rules);
     }
   }
@@ -375,7 +375,7 @@ final class PhutilParserGenerator {
     $reducible = array();
     foreach ($this->rules as $rule => $productions) {
       if (!$this->isRuleReducible($rule, $reducible)) {
-        throw new PhutilParserGeneratorIrreducibleRuleException(
+        throw new PhutilIrreducibleRuleParserGeneratorException(
           "Rule '{$rule}' can never be reduced: it recurses indefinitely ".
           "and reaches no production of terminals.");
       }
@@ -642,7 +642,8 @@ final class PhutilParserGenerator {
         $item[0],
         $item[1],
         $item[2] + 1,
-        $item[3]);
+        $item[3],
+      );
     }
 
     foreach ($nexts as $next => $items) {
@@ -731,11 +732,11 @@ final class PhutilParserGenerator {
       }
 
       if ($accept && isset($shift[$eof])) {
-        throw new Exception("Accept/shift conflict!");
+        throw new Exception('Accept/shift conflict!');
       }
 
       if ($accept && isset($reduce[$eof])) {
-        throw new Exception("Accept/reduce conflict!");
+        throw new Exception('Accept/reduce conflict!');
       }
 
       foreach ($reduce as $next => $item) {
@@ -744,13 +745,16 @@ final class PhutilParserGenerator {
           array(
             $item[0],
             $item[1],
-            count($this->rules[$item[0]][$item[1]]) - 1));
+            count($this->rules[$item[0]][$item[1]]) - 1,
+          ),
+        );
       }
 
       foreach ($shift as $next => $item) {
         $action[$state][$next] = array(
           'S',
-          $this->successor[$state][$next]);
+          $this->successor[$state][$next],
+        );
       }
 
       if ($accept) {
@@ -776,7 +780,7 @@ final class PhutilParserGenerator {
   }
 
   private function formatAndIndent($var, $depth) {
-    $var = var_export($var, true);
+    $var = phutil_var_export($var);
     $var = str_replace("\n", "\n".str_repeat(' ', $depth), $var);
 
     return $var;
@@ -860,7 +864,7 @@ final class PhutilParserGenerator {
    */
   public function inspectRules() {
     if (!$this->rulesValidated) {
-      throw new Exception("Call processGrammar() before inspectRules()!");
+      throw new Exception('Call processGrammar() before inspectRules()!');
     }
     return $this->rules;
   }
@@ -871,7 +875,7 @@ final class PhutilParserGenerator {
    */
   public function inspectFirstTable() {
     if ($this->firstTable === null) {
-      throw new Exception("Call processGrammar() before inspectFirstTable()!");
+      throw new Exception('Call processGrammar() before inspectFirstTable()!');
     }
     return $this->firstTable;
   }

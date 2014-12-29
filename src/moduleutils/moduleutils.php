@@ -1,17 +1,10 @@
 <?php
 
-/**
- * @group library
- */
 function phutil_get_library_root($library) {
   $bootloader = PhutilBootloader::getInstance();
   return $bootloader->getLibraryRoot($library);
 }
 
-
-/**
- * @group library
- */
 function phutil_get_library_root_for_path($path) {
   foreach (Filesystem::walkToRoot($path) as $dir) {
     if (@file_exists($dir.'/__phutil_library_init__.php')) {
@@ -21,9 +14,6 @@ function phutil_get_library_root_for_path($path) {
   return null;
 }
 
-/**
- * @group library
- */
 function phutil_get_library_name_for_root($path) {
   $path = rtrim(Filesystem::resolvePath($path), '/');
 
@@ -39,10 +29,15 @@ function phutil_get_library_name_for_root($path) {
   return null;
 }
 
+function phutil_get_current_library_name() {
+  $caller = head(debug_backtrace(false));
+
+  $root = phutil_get_library_root_for_path($caller['file']);
+  return phutil_get_library_name_for_root($root);
+}
+
 /**
  * Warns about use of deprecated behavior.
- *
- * @group library
  */
 function phutil_deprecated($what, $why) {
   PhutilErrorHandler::dispatchErrorMessage(

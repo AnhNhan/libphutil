@@ -1,5 +1,7 @@
 <?php
 
-abstract class PhutilAuthException extends Exception {
-
-}
+/**
+ * Abstract exception class for errors encountered during authentication
+ * workflows.
+ */
+abstract class PhutilAuthException extends Exception {}

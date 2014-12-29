@@ -15,11 +15,11 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
     try {
       // Expect "b is not a rule or terminal".
       $generator->processGrammar();
-    } catch (PhutilParserGeneratorUnknownSymbolException $ex) {
+    } catch (PhutilUnknownSymbolParserGeneratorException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, ($caught instanceof Exception));
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testBadStartRule() {
@@ -35,11 +35,11 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
     try {
       // Expect "no start rule Q".
       $generator->processGrammar();
-    } catch (PhutilParserGeneratorUnknownSymbolException $ex) {
+    } catch (PhutilUnknownSymbolParserGeneratorException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, ($caught instanceof Exception));
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testMessySymbols() {
@@ -70,10 +70,10 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
     $epsilon = $generator->getEpsilonSymbol();
     $end = $generator->getEndSymbol();
 
-    $this->assertEqual(false, ($init == '(init)'));
-    $this->assertEqual(false, ($eof == '(end-of-file)'));
-    $this->assertEqual(false, ($epsilon == '(epsilon)'));
-    $this->assertEqual(false, ($end == '(end)'));
+    $this->assertFalse($init == '(init)');
+    $this->assertFalse($eof == '(end-of-file)');
+    $this->assertFalse($epsilon == '(epsilon)');
+    $this->assertFalse($end == '(end)');
 
     $keys = array_keys($rules);
     $expect = array('(end-of-file)', '(epsilon)', 's p a c e s', $init);
@@ -107,11 +107,11 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
     $caught = null;
     try {
       $generator->processGrammar();
-    } catch (PhutilParserGeneratorUnreachableTerminalException $ex) {
+    } catch (PhutilUnreachableTerminalParserGeneratorException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, ($caught instanceof Exception));
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testUnreachableRule() {
@@ -128,11 +128,11 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
     $caught = null;
     try {
       $generator->processGrammar();
-    } catch (PhutilParserGeneratorUnreachableRuleException $ex) {
+    } catch (PhutilUnreachableRuleParserGeneratorException $ex) {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, ($caught instanceof Exception));
+    $this->assertTrue($caught instanceof Exception);
   }
 
   public function testIrreducibleGrammars() {
@@ -180,7 +180,7 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
       $caught = null;
       try {
         $generator->processGrammar();
-      } catch (PhutilParserGeneratorIrreducibleRuleException $ex) {
+      } catch (PhutilIrreducibleRuleParserGeneratorException $ex) {
         $caught = $ex;
       }
 
@@ -235,6 +235,8 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
           ),
         ))
       ->processGrammar();
+
+    $this->assertTrue(true);
   }
 
   public function testETParser() {
@@ -273,7 +275,7 @@ final class PhutilParserGeneratorTestCase extends PhutilTestCase {
         break;
     }
 
-    throw new Exception("Unexpected rule in ET grammar.");
+    throw new Exception('Unexpected rule in ET grammar.');
   }
 
   private function buildABCGenerator() {

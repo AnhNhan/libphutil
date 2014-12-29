@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group aast
- */
 abstract class AASTNode {
 
   protected $id;
@@ -61,6 +58,18 @@ abstract class AASTNode {
     return $this->children;
   }
 
+  public function getChildrenOfType($type) {
+    $nodes = array();
+
+    foreach ($this->children as $child) {
+      if ($child->getTypeName() == $type) {
+        $nodes[] = $child;
+      }
+    }
+
+    return $nodes;
+  }
+
   public function getChildOfType($index, $type) {
     $child = $this->getChildByIndex($index);
     if ($child->getTypeName() != $type) {
@@ -87,14 +96,14 @@ abstract class AASTNode {
   }
 
   /**
-   * Build a cache to improve the performance of selectDescendantsOfType(). This
-   * cache makes a time/memory tradeoff by aggressively caching node
-   * descendants. It may improve the tree's query performance substantially if
-   * you make a large number of queries, but also requires a significant amount
-   * of memory.
+   * Build a cache to improve the performance of
+   * @{method:selectDescendantsOfType}. This cache makes a time/memory tradeoff
+   * by aggressively caching node descendants. It may improve the tree's query
+   * performance substantially if you make a large number of queries, but also
+   * requires a significant amount of memory.
    *
    * This builds a cache for the entire tree and improves performance of all
-   * selectDescendantsOfType() calls.
+   * @{method:selectDescendantsOfType} calls.
    */
   public function buildSelectCache() {
     $cache = array();
@@ -116,10 +125,11 @@ abstract class AASTNode {
   }
 
   /**
-   * Build a cache to improve the performance of selectTokensOfType(). This
-   * cache makes a time/memory tradeoff by aggressively caching token types.
-   * It may improve the tree's query performance substantially if you make a
-   * large enumber of queries, but also requires a signficant amount of memory.
+   * Build a cache to improve the performance of @{method:selectTokensOfType}.
+   * This cache makes a time/memory tradeoff by aggressively caching token
+   * types. It may improve the tree's query performance substantially if you
+   * make a large number of queries, but also requires a significant amount of
+   * memory.
    *
    * This builds a cache for this node only.
    */
@@ -132,35 +142,50 @@ abstract class AASTNode {
     return $this->tokenCache;
   }
 
+  public function selectTokensOfType($type_name) {
+    return $this->selectTokensOfTypes(array($type_name));
+  }
 
   /**
-   * Select all tokens of a given type.
+   * Select all tokens of any given types.
    */
-  public function selectTokensOfType($type_name) {
-    if (isset($this->tokenCache)) {
-      return idx($this->tokenCache, $type_name, array());
-    } else {
-      $result = array();
-      foreach ($this->getTokens() as $id => $token) {
-        if ($token->getTypeName() == $type_name) {
-          $result[$id] = $token;
+  public function selectTokensOfTypes(array $type_names) {
+    $tokens = array();
+
+    foreach ($type_names as $type_name) {
+      if (isset($this->tokenCache)) {
+        $cached_tokens = idx($this->tokenCache, $type_name, array());
+        foreach ($cached_tokens as $id => $cached_token) {
+          $tokens[$id] = $cached_token;
+        }
+      } else {
+        foreach ($this->getTokens() as $id => $token) {
+          if ($token->getTypeName() == $type_name) {
+            $tokens[$id] = $token;
+          }
         }
       }
-      return $result;
     }
+
+    return $tokens;
   }
 
   public function selectDescendantsOfType($type_name) {
-    $type = $this->getTypeIDFromTypeName($type_name);
+    return $this->selectDescendantsOfTypes(array($type_name));
+  }
 
-    if (isset($this->selectCache)) {
-      if (isset($this->selectCache[$type])) {
-        $nodes = $this->selectCache[$type];
+  public function selectDescendantsOfTypes(array $type_names) {
+    $nodes = array();
+    foreach ($type_names as $type_name) {
+      $type = $this->getTypeIDFromTypeName($type_name);
+
+      if (isset($this->selectCache)) {
+        if (isset($this->selectCache[$type])) {
+          $nodes = $nodes + $this->selectCache[$type];
+        }
       } else {
-        $nodes = array();
+        $nodes = $nodes + $this->executeSelectDescendantsOfType($this, $type);
       }
-    } else {
-      $nodes = $this->executeSelectDescendantsOfType($this, $type);
     }
 
     return AASTNodeList::newFromTreeAndNodes($this->tree, $nodes);
@@ -230,6 +255,15 @@ abstract class AASTNode {
     return $stream[$this->l]->getOffset();
   }
 
+  public function getLength() {
+    $stream = $this->tree->getRawTokenStream();
+    if (empty($stream[$this->r])) {
+      return null;
+    }
+    return $stream[$this->r]->getOffset() - $this->getOffset();
+  }
+
+
   public function getSurroundingNonsemanticTokens() {
     $before = array();
     $after  = array();
@@ -249,6 +283,12 @@ abstract class AASTNode {
 
   public function getLineNumber() {
     return idx($this->tree->getOffsetToLineNumberMap(), $this->getOffset());
+  }
+
+  public function getEndLineNumber() {
+    return idx(
+      $this->tree->getOffsetToLineNumberMap(),
+      $this->getOffset() + $this->getLength());
   }
 
   public function dispose() {

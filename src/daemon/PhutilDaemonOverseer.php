@@ -2,14 +2,13 @@
 
 /**
  * Oversees a daemon and restarts it if it fails.
- *
- * @group daemon
  */
 final class PhutilDaemonOverseer {
 
   const EVENT_DID_LAUNCH    = 'daemon.didLaunch';
   const EVENT_DID_LOG       = 'daemon.didLogMessage';
   const EVENT_DID_HEARTBEAT = 'daemon.didHeartbeat';
+  const EVENT_WILL_GRACEFUL = 'daemon.willGraceful';
   const EVENT_WILL_EXIT     = 'daemon.willExit';
 
   const HEARTBEAT_WAIT      = 120;
@@ -26,7 +25,8 @@ final class PhutilDaemonOverseer {
   private $argv;
   private $moreArgs;
   private $childPID;
-  private $signaled;
+  private $inAbruptShutdown;
+  private $inGracefulShutdown;
   private static $instance;
 
   private $traceMode;
@@ -107,7 +107,6 @@ EOHELP
 
     $log = $args->getArg('log');
     if ($log) {
-      ini_set('error_log', $log);
       $argv[] = '--log='.$log;
     }
 
@@ -120,16 +119,36 @@ EOHELP
     $this->daemonize  = $args->getArg('daemonize');
     $this->phddir     = $args->getArg('phd');
     $this->argv       = $argv;
-    $this->moreArgs   = $more;
-
-    error_log("Bringing daemon '{$this->daemon}' online...");
+    $this->moreArgs   = coalesce($more, array());
 
     if (self::$instance) {
       throw new Exception(
-        "You may not instantiate more than one Overseer per process.");
+        'You may not instantiate more than one Overseer per process.');
     }
 
     self::$instance = $this;
+
+    // Check this before we daemonize, since if it's an issue the child will
+    // exit immediately.
+    if ($this->phddir) {
+      $dir = $this->phddir;
+      try {
+        Filesystem::assertWritable($dir);
+      } catch (Exception $ex) {
+        throw new Exception(
+          "Specified daemon PID directory ('{$dir}') does not exist or is ".
+          "not writable by the daemon user!");
+      }
+    }
+
+    if ($log) {
+      // NOTE: Now that we're committed to daemonizing, redirect the error
+      // log if we have a `--log` parameter. Do this at the last moment
+      // so as many setup issues as possible are surfaced.
+      ini_set('error_log', $log);
+    }
+
+    error_log("Bringing daemon '{$this->daemon}' online...");
 
     if ($this->daemonize) {
 
@@ -141,7 +160,7 @@ EOHELP
 
       $pid = pcntl_fork();
       if ($pid === -1) {
-        throw new Exception("Unable to fork!");
+        throw new Exception('Unable to fork!');
       } else if ($pid) {
         exit(0);
       }
@@ -150,6 +169,7 @@ EOHELP
     if ($this->phddir) {
       $desc = array(
         'name'            => $this->daemon,
+        'argv'            => $this->moreArgs,
         'pid'             => getmypid(),
         'start'           => time(),
       );
@@ -161,13 +181,16 @@ EOHELP
     $this->daemonID = $this->generateDaemonID();
     $this->dispatchEvent(
       self::EVENT_DID_LAUNCH,
-      array('argv' => array_slice($original_argv, 1)));
+      array(
+        'argv' => array_slice($original_argv, 1),
+        'explicitArgv' => $this->moreArgs,
+      ));
 
     declare(ticks = 1);
     pcntl_signal(SIGUSR1, array($this, 'didReceiveKeepaliveSignal'));
     pcntl_signal(SIGUSR2, array($this, 'didReceiveNotifySignal'));
 
-    pcntl_signal(SIGINT,  array($this, 'didReceiveTerminalSignal'));
+    pcntl_signal(SIGINT,  array($this, 'didReceiveGracefulSignal'));
     pcntl_signal(SIGTERM, array($this, 'didReceiveTerminalSignal'));
   }
 
@@ -268,9 +291,23 @@ EOHELP
         $this->annihilateProcessGroup();
       } while (false);
 
+      if ($this->inGracefulShutdown) {
+        // If we just exited because of a graceful shutdown, break now.
+        break;
+      }
+
       $this->logMessage('WAIT', 'Waiting to restart process.');
       sleep(self::RESTART_WAIT);
+
+      if ($this->inGracefulShutdown) {
+        // If we were awakend by a graceful shutdown, break now.
+        break;
+      }
     }
+
+    // This is a clean exit after a graceful shutdown.
+    $this->dispatchEvent(self::EVENT_WILL_EXIT);
+    exit(0);
   }
 
   public function didReceiveNotifySignal($signo) {
@@ -284,11 +321,35 @@ EOHELP
     $this->deadline = time() + $this->deadlineTimeout;
   }
 
+  public function didReceiveGracefulSignal($signo) {
+    // If we receive SIGINT more than once, interpret it like SIGTERM.
+    if ($this->inGracefulShutdown) {
+      return $this->didReceiveTerminalSignal($signo);
+    }
+    $this->inGracefulShutdown = true;
+
+    $signame = phutil_get_signal_name($signo);
+    if ($signame) {
+      $sigmsg = pht(
+        'Graceful shutdown in response to signal %d (%s).',
+        $signo,
+        $signame);
+    } else {
+      $sigmsg = pht(
+        'Graceful shutdown in response to signal %d.',
+        $signo);
+    }
+
+    $this->logMessage('DONE', $sigmsg, $signo);
+
+    $this->gracefulProcessGroup();
+  }
+
   public function didReceiveTerminalSignal($signo) {
-    if ($this->signaled) {
+    if ($this->inAbruptShutdown) {
       exit(128 + $signo);
     }
-    $this->signaled = true;
+    $this->inAbruptShutdown = true;
 
     $signame = phutil_get_signal_name($signo);
     if ($signame) {
@@ -357,6 +418,15 @@ EOHELP
   }
 
 
+  private function gracefulProcessGroup() {
+    $pid = $this->childPID;
+    $pgid = posix_getpgid($pid);
+    if ($pid && $pgid) {
+      exec("kill -INT -{$pgid}");
+    }
+  }
+
+
   /**
    * Identify running daemons by examining the process table. This isn't
    * completely reliable, but can be used as a fallback if the pid files fail
@@ -368,10 +438,12 @@ EOHELP
    *     12345 => array(
    *       'type' => 'overseer',
    *       'command' => 'php launch_daemon.php --daemonize ...',
+   *       'pid' => 12345,
    *     ),
    *     12346 => array(
    *       'type' => 'daemon',
    *       'command' => 'php exec_daemon.php ...',
+   *       'pid' => 12346,
    *     ),
    *  );
    *
@@ -391,13 +463,27 @@ EOHELP
       list($pid, $command) = explode(' ', $process, 2);
 
       $matches = null;
-      if (!preg_match('/(launch|exec)_daemon.php/', $command, $matches)) {
+      if (!preg_match('/((launch|exec)_daemon.php|phd-daemon)/',
+                      $command,
+                      $matches)) {
         continue;
       }
 
+      switch ($matches[1]) {
+        case 'exec_daemon.php':
+          $type = 'daemon';
+          break;
+        case 'launch_daemon.php':
+        case 'phd-daemon':
+        default:
+          $type = 'overseer';
+          break;
+      }
+
       $results[(int)$pid] = array(
-        'type'    => ($matches[1] == 'launch') ? 'overseer' : 'daemon',
+        'type'    => $type,
         'command' => $command,
+        'pid' => (int) $pid,
       );
     }
 

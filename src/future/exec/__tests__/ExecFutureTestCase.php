@@ -1,12 +1,8 @@
 <?php
 
-/**
- * @group testcase
- */
 final class ExecFutureTestCase extends PhutilTestCase {
 
   public function testEmptyWrite() {
-
     // NOTE: This is mostly testing that we don't hang while doing an empty
     // write.
 
@@ -16,8 +12,7 @@ final class ExecFutureTestCase extends PhutilTestCase {
   }
 
   public function testKeepPipe() {
-
-    // NOTE: This is mosty testing the semantics of $keep_pipe in write().
+    // NOTE: This is mostly testing the semantics of $keep_pipe in write().
 
     list($stdout) = id(new ExecFuture('cat'))
       ->write('', true)
@@ -31,7 +26,6 @@ final class ExecFutureTestCase extends PhutilTestCase {
   }
 
   public function testLargeBuffer() {
-
     // NOTE: This is mostly a coverage test to hit branches where we're still
     // flushing a buffer.
 
@@ -52,7 +46,6 @@ final class ExecFutureTestCase extends PhutilTestCase {
   }
 
   public function testResolveTimeoutTestShouldRunLessThan1Sec() {
-
     // NOTE: This tests interactions between the resolve() timeout and the
     // ExecFuture timeout, which are similar but not identical.
 
@@ -72,15 +65,14 @@ final class ExecFutureTestCase extends PhutilTestCase {
 
 
   public function testTimeoutTestShouldRunLessThan1Sec() {
-
     // NOTE: This is partly testing that we choose appropriate select wait
     // times; this test should run for significantly less than 1 second.
 
     $future = new ExecFuture('sleep 32000');
     list($err) = $future->setTimeout(0.01)->resolve();
 
-    $this->assertEqual(true, $err > 0);
-    $this->assertEqual(true, $future->getWasKilledByTimeout());
+    $this->assertTrue($err > 0);
+    $this->assertTrue($future->getWasKilledByTimeout());
   }
 
   public function testMultipleTimeoutsTestShouldRunLessThan1Sec() {
@@ -92,8 +84,8 @@ final class ExecFutureTestCase extends PhutilTestCase {
     foreach (Futures($futures) as $future) {
       list ($err) = $future->resolve();
 
-      $this->assertEqual(true, $err > 0);
-      $this->assertEqual(true, $future->getWasKilledByTimeout());
+      $this->assertTrue($err > 0);
+      $this->assertTrue($future->getWasKilledByTimeout());
     }
   }
 
@@ -106,7 +98,7 @@ final class ExecFutureTestCase extends PhutilTestCase {
 
     // If ExecFuture::__destruct() hangs until the child closes, we won't make
     // it here in time.
-    $this->assertEqual(true, ($end - $start) < 5);
+    $this->assertTrue(($end - $start) < 5);
   }
 
   public function testMultipleResolves() {

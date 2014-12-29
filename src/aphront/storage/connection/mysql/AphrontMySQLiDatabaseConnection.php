@@ -1,14 +1,17 @@
 <?php
 
 /**
- * @group storage
- *
  * @phutil-external-symbol class mysqli
  */
 final class AphrontMySQLiDatabaseConnection
-  extends AphrontMySQLDatabaseConnectionBase {
+  extends AphrontBaseMySQLDatabaseConnection {
 
-  public function escapeString($string) {
+  public function escapeUTF8String($string) {
+    $this->validateUTF8String($string);
+    return $this->escapeBinaryString($string);
+  }
+
+  public function escapeBinaryString($string) {
     return $this->requireConnection()->escape_string($string);
   }
 
@@ -27,8 +30,8 @@ final class AphrontMySQLiDatabaseConnection
   protected function connect() {
     if (!class_exists('mysqli', false)) {
       throw new Exception(
-        "About to call new mysqli(), but the PHP MySQLi extension is not ".
-        "available!");
+        'About to call new mysqli(), but the PHP MySQLi extension is not '.
+        'available!');
     }
 
     $user = $this->getConfiguration('user');
@@ -49,7 +52,14 @@ final class AphrontMySQLiDatabaseConnection
       }
     }
 
-    $conn = @new mysqli(
+    $conn = mysqli_init();
+
+    $timeout = $this->getConfiguration('timeout');
+    if ($timeout) {
+      $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, $timeout);
+    }
+
+    @$conn->real_connect(
       $host,
       $user,
       $pass,
@@ -59,12 +69,15 @@ final class AphrontMySQLiDatabaseConnection
     $errno = $conn->connect_errno;
     if ($errno) {
       $error = $conn->connect_error;
-      throw new AphrontQueryConnectionException(
+      throw new AphrontConnectionQueryException(
         "Attempt to connect to {$user}@{$host} failed with error ".
         "#{$errno}: {$error}.", $errno);
     }
 
-    $conn->set_charset('utf8');
+    $ok = @$conn->set_charset('utf8mb4');
+    if (!$ok) {
+      $ok = $conn->set_charset('utf8');
+    }
 
     return $conn;
   }
@@ -98,7 +111,7 @@ final class AphrontMySQLiDatabaseConnection
     }
 
     if ($conn->more_results()) {
-      throw new Exception("There are some results left in the result set.");
+      throw new Exception('There are some results left in the result set.');
     }
 
     return $results;

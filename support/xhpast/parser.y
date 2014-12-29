@@ -69,7 +69,7 @@ static void replacestr(string &source, const string &find, const string &rep) {
 
 %}
 
-%expect 12
+%expect 5
 // 2: PHP's if/else grammar
 // 7: expr '[' dim_offset ']' -- shift will default to first grammar
 %name-prefix = "xhpast"
@@ -1460,12 +1460,6 @@ expr_without_variable:
 
     $$->appendChild($3);
   }
-| T_NEW class_name_reference ctor_arguments {
-    NTYPE($1, n_NEW);
-    $1->appendChild($2);
-    $1->appendChild($3);
-    $$ = $1;
-  }
 | T_CLONE expr {
     $$ = NNEW(n_UNARY_PREFIX_EXPRESSION);
     $$->appendChild(NTYPE($1, n_OPERATOR));
@@ -1747,11 +1741,8 @@ expr_without_variable:
     $$->appendChild(NTYPE($2, n_OPERATOR));
     $$->appendChild($3);
   }
-| '(' expr ')' {
-    NSPAN($1, n_PARENTHETICAL_EXPRESSION, $3);
-    $1->appendChild($2);
-    $$ = $1;
-  }
+| parenthesis_expr
+| new_expr
 | expr '?' expr ':' expr {
     $$ = NNEW(n_TERNARY_EXPRESSION);
     $$->appendChild($1);
@@ -1810,23 +1801,13 @@ expr_without_variable:
     $$->appendChild(NTYPE($1, n_OPERATOR));
     $$->appendChild($2);
   }
-| T_ARRAY '(' array_pair_list ')' {
-    NTYPE($1, n_ARRAY_LITERAL);
-    $1->appendChild($3);
-    NMORE($1, $4);
-    $$ = $1;
-  }
-| '[' array_pair_list ']' {
-    NTYPE($1, n_ARRAY_LITERAL);
-    $1->appendChild($2);
-    NMORE($1, $3);
-    $$ = $1;
-  }
 | T_BACKTICKS_EXPR {
     NTYPE($1, n_BACKTICKS_EXPRESSION);
     $$ = $1;
   }
 | scalar
+| combined_scalar_offset
+| combined_scalar
 | T_PRINT expr {
     $$ = NNEW(n_UNARY_PREFIX_EXPRESSION);
     $$->appendChild(NTYPE($1, n_OPERATOR));
@@ -1837,9 +1818,6 @@ expr_without_variable:
     $1->appendChild(NNEW(n_EMPTY));
     $1->appendChild(NNEW(n_EMPTY));
     $$ = $1;
-  }
-| '(' yield_expr ')' {
-  $$ = NEXPAND($1, $2, $3);
   }
 | function is_reference '(' parameter_list ')' lexical_vars '{' inner_statement_list '}' {
     NSPAN($1, n_FUNCTION_DECLARATION, $9);
@@ -2282,10 +2260,30 @@ variable_property:
   }
 ;
 
-method_or_not:
+array_method_dereference:
+  array_method_dereference '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild($1);
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+| method '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild($1);
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+;
+
+method:
   '(' function_call_parameter_list ')' {
     $$ = NEXPAND($1, $2, $3);
   }
+;
+
+method_or_not:
+  method
+| array_method_dereference
 | /* empty */ {
     $$ = NNEW(n_EMPTY);
   }
@@ -2324,13 +2322,32 @@ variable_class_name:
   reference_variable
 ;
 
+array_function_dereference:
+  array_function_dereference '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild($1);
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+| function_call '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild($1);
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+;
+
 base_variable_with_function_calls:
   base_variable
+| array_function_dereference
 | function_call
 ;
 
 base_variable:
   reference_variable
+| '(' new_expr ')' {
+    $$ = NEXPAND($1, $2, $3);
+  }
 | simple_indirect_reference reference_variable {
     xhpast::Node *last = $1;
     NMORE($1, $2);
@@ -2392,7 +2409,7 @@ object_dim_list:
     $$ = NNEW(n_INDEX_ACCESS);
     $$->appendChild($1);
     $$->appendChild($3);
-    NMORE($$, $4)
+    NMORE($$, $4);
   }
 | object_dim_list '{' expr '}' {
     $$ = NNEW(n_INDEX_ACCESS);
@@ -2576,6 +2593,62 @@ isset_variables:
   }
 ;
 
+parenthesis_expr:
+  '(' expr ')' {
+    NSPAN($1, n_PARENTHETICAL_EXPRESSION, $3);
+    $1->appendChild($2);
+    $$ = $1;
+  }
+| '(' yield_expr ')' {
+    $$ = NEXPAND($1, $2, $3);
+  }
+;
+
+combined_scalar_offset:
+  combined_scalar '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild($1);
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+| combined_scalar_offset '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild($1);
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+| T_CONSTANT_ENCAPSED_STRING '[' dim_offset ']' {
+    $$ = NNEW(n_INDEX_ACCESS);
+    $$->appendChild(NTYPE($1, n_STRING_SCALAR));
+    $$->appendChild($3);
+    NMORE($$, $4);
+  }
+;
+
+combined_scalar:
+  T_ARRAY '(' array_pair_list ')' {
+    NTYPE($1, n_ARRAY_LITERAL);
+    $1->appendChild($3);
+    NMORE($1, $4);
+    $$ = $1;
+  }
+| '[' array_pair_list ']' {
+    NTYPE($1, n_ARRAY_LITERAL);
+    $1->appendChild($2);
+    NMORE($1, $3);
+    $$ = $1;
+  }
+;
+
+new_expr:
+  T_NEW class_name_reference ctor_arguments {
+    NTYPE($1, n_NEW);
+    $1->appendChild($2);
+    $1->appendChild($3);
+    $$ = $1;
+  }
+;
+
 class_constant:
   class_name T_PAAMAYIM_NEKUDOTAYIM T_STRING {
     $$ = NNEW(n_CLASS_STATIC_ACCESS);
@@ -2589,24 +2662,6 @@ class_constant:
   }
 ;
 
-// Fix the "bug" in PHP's grammar where you can't chain the [] operator on a
-// function call.
-// This introduces some shift/reduce conflicts. We want the shift here to fall
-// back to regular PHP grammar. In the case where it's an extension of the PHP
-// grammar our code gets picked up.
-expr_without_variable:
-  expr '[' dim_offset ']' {
-    if (yyextra->idx_expr) {
-      yyextra->used = true;
-    }
-    $$ = NNEW(n_INDEX_ACCESS);
-    $$->appendChild($1);
-    $$->appendChild($3);
-    NMORE($$, $4);
-  }
-;
-
-
 %%
 
 const char* yytokname(int tok) {
@@ -2615,3 +2670,8 @@ const char* yytokname(int tok) {
   }
   return yytname[YYTRANSLATE(tok)];
 }
+
+
+/*
+ * vim: tabstop=2 expandtab shiftwidth=2 softtabstop=2
+ */

@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group xhpast
- */
 final class XHPASTNode extends AASTNode {
 
   public function isStaticScalar() {
@@ -72,7 +69,7 @@ final class XHPASTNode extends AASTNode {
             return $operand->evalStatic();
             break;
           default:
-            throw new Exception("Unexpected operator in static expression.");
+            throw new Exception('Unexpected operator in static expression.');
         }
         break;
       case 'n_ARRAY_LITERAL':
@@ -88,8 +85,20 @@ final class XHPASTNode extends AASTNode {
           }
         }
         return $result;
+      case 'n_CONCATENATION_LIST':
+        $result = '';
+        foreach ($this->getChildren() as $child) {
+          if ($child->getTypeName() == 'n_OPERATOR') {
+            continue;
+          }
+          $result .= $child->evalStatic();
+        }
+        return $result;
       default:
-        throw new Exception("Unexpected node.");
+        throw new Exception(
+          pht(
+            'Unexpected node during static evaluation, of type: %s',
+            $this->getTypeName()));
     }
   }
 

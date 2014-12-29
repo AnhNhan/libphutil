@@ -121,21 +121,22 @@ final class PhutilTypeSpecTestCase extends PhutilTestCase {
   public function testGetTypeOf() {
     $map = array(
       'int'                     => 1,
-      'string'                  => "asdf",
+      'string'                  => 'asdf',
       'float'                   => 1.5,
       'bool'                    => true,
       'null'                    => null,
       'map<wild, wild>'         => array(),
-      'list<string>'            => array("a", "b"),
+      'list<string>'            => array('a', 'b'),
       'list<int>'               => array(1, 2, 3),
-      'map<string, int>'        => array("x" => 3),
-      'map<int, list<string>>'  => array(1 => array("x", "y")),
+      'map<string, int>'        => array('x' => 3),
+      'map<int, list<string>>'  => array(1 => array('x', 'y')),
       'stdClass'                => new stdClass(),
       'list<Exception>'         => array(
-                                     new Exception(),
-                                     new LogicException(),
-                                     new RuntimeException()),
-      'map<string, stdClass>'   => array("x" => new stdClass()),
+        new Exception(),
+        new LogicException(),
+        new RuntimeException(),
+      ),
+      'map<string, stdClass>'   => array('x' => new stdClass()),
     );
 
     foreach ($map as $expect => $input) {
@@ -169,7 +170,7 @@ final class PhutilTypeSpecTestCase extends PhutilTestCase {
         $caught = $ex;
       }
 
-      $this->assertEqual(true, ($ex instanceof PhutilTypeCheckException));
+      $this->assertTrue($ex instanceof PhutilTypeCheckException);
     }
   }
 
@@ -207,9 +208,7 @@ final class PhutilTypeSpecTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(
-      true,
-      ($ex instanceof PhutilTypeMissingParametersException));
+    $this->assertTrue($ex instanceof PhutilTypeMissingParametersException);
 
     // Parameter "size" is specified but does not exist.
 
@@ -225,9 +224,7 @@ final class PhutilTypeSpecTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(
-      true,
-      ($ex instanceof PhutilTypeExtraParametersException));
+    $this->assertTrue($ex instanceof PhutilTypeExtraParametersException);
   }
 
   public function testRegexValidation() {
@@ -252,7 +249,7 @@ final class PhutilTypeSpecTestCase extends PhutilTestCase {
       $caught = $ex;
     }
 
-    $this->assertEqual(true, ($ex instanceof PhutilTypeCheckException));
+    $this->assertTrue($ex instanceof PhutilTypeCheckException);
   }
 
   public function testScalarOrListRegexp() {
@@ -287,6 +284,8 @@ final class PhutilTypeSpecTestCase extends PhutilTestCase {
       array(
         'regex' => 'list<regex> | regex',
       ));
+
+    $this->assertTrue(true);
   }
 
 }

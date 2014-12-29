@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group testcase
- */
 final class LinesOfALargeExecFutureTestCase extends PhutilTestCase {
 
   // Most of the core functionality of LinesOfALarge is covered by the
@@ -12,14 +9,14 @@ final class LinesOfALargeExecFutureTestCase extends PhutilTestCase {
     $this->writeAndRead(
       "cat\ndog\nbird\n",
       array(
-        "cat",
-        "dog",
-        "bird",
+        'cat',
+        'dog',
+        'bird',
       ));
   }
 
   public function testExecLargeFile() {
-    $line = "The quick brown fox jumps over the lazy dog.";
+    $line = 'The quick brown fox jumps over the lazy dog.';
     $n    = 100;
 
     $this->writeAndRead(
@@ -42,7 +39,7 @@ final class LinesOfALargeExecFutureTestCase extends PhutilTestCase {
     } catch (Exception $ex) {
       $caught = $ex;
     }
-    $this->assertEqual(true, $caught instanceof CommandException);
+    $this->assertTrue($caught instanceof CommandException);
   }
 
   private function writeAndRead($write, $read) {
@@ -57,7 +54,9 @@ final class LinesOfALargeExecFutureTestCase extends PhutilTestCase {
     $this->assertEqual(
       $read,
       $lines,
-      "Write: ".phutil_utf8_shorten($write, 32));
+      'Write: '.id(new PhutilUTF8StringTruncator())
+      ->setMaximumGlyphs(32)
+      ->truncateString($write));
   }
 
 }

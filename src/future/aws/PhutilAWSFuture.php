@@ -1,17 +1,15 @@
 <?php
 
-/**
- * @group aws
- */
 abstract class PhutilAWSFuture extends FutureProxy {
 
   private $future;
   private $awsAccessKey;
   private $awsPrivateKey;
+  private $awsRegion;
   private $builtRequest;
   private $params;
 
-  abstract public function getHost();
+  abstract public function getServiceName();
 
   public function __construct() {
     parent::__construct(null);
@@ -31,14 +29,24 @@ abstract class PhutilAWSFuture extends FutureProxy {
     return $this->awsPrivateKey;
   }
 
+  public function getAWSRegion() {
+    return $this->awsRegion;
+  }
+
+  public function setAWSRegion($region) {
+    $this->awsRegion = $region;
+    return $this;
+  }
+
+  public function getHost() {
+    $host = $this->getServiceName().'.'.$this->awsRegion.'.amazonaws.com';
+    return $host;
+  }
+
   public function setRawAWSQuery($action, array $params = array()) {
     $this->params = $params;
     $this->params['Action'] = $action;
     return $this;
-  }
-
-  public function getAWSKeys() {
-    return $this->AWSKeys;
   }
 
   protected function getProxiedFuture() {
@@ -46,15 +54,15 @@ abstract class PhutilAWSFuture extends FutureProxy {
       $params = $this->params;
 
       if (!$this->params) {
-        throw new Exception("You must setRawAWSQuery()!");
+        throw new Exception('You must setRawAWSQuery()!');
       }
 
       if (!$this->getAWSAccessKey()) {
-        throw new Exception("You must setAWSKeys()!");
+        throw new Exception('You must setAWSKeys()!');
       }
 
       $params['AWSAccessKeyId'] = $this->getAWSAccessKey();
-      $params['Version']        = '2011-12-15';
+      $params['Version']        = '2013-10-15';
       $params['Timestamp']      = date('c');
 
       $params = $this->sign($params);
@@ -78,7 +86,7 @@ abstract class PhutilAWSFuture extends FutureProxy {
     }
 
     if ($status->isError() || !$xml) {
-      if (!($status instanceof HTTPFutureResponseStatusHTTP)) {
+      if (!($status instanceof HTTPFutureHTTPResponseStatus)) {
         throw $status;
       }
 

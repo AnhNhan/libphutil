@@ -7,8 +7,6 @@
  *
  * This lexer is not suitable for parser construction; it always lexes any
  * input stream, even if the input is not PHP.
- *
- * @group lexer
  */
 final class PhutilPHPFragmentLexer extends PhutilLexer {
 
@@ -117,7 +115,8 @@ final class PhutilPHPFragmentLexer extends PhutilLexer {
         array('\\?>', 'cp', '!pop'),
         array(
           '<<<([\'"]?)('.$identifier_pattern.')\\1\\n.*?\\n\\2\\;?\\n',
-          's'),
+          's',
+        ),
       ), $nonsemantic_rules, array(
         array('(?i:__halt_compiler)\\b', 'cp', 'halt_compiler'),
         array('(->|::)', 'o', 'attr'),
@@ -155,8 +154,8 @@ final class PhutilPHPFragmentLexer extends PhutilLexer {
         array('0[xX][a-fA-F0-9]+', 'mh'),
         array('0[bB][0-1]+', 'm'),
         array('\d+', 'mi'),
-        array("'", "s1", 'string1'),
-        array("`", "sb", 'stringb'),
+        array("'", 's1', 'string1'),
+        array('`', 'sb', 'stringb'),
         array('"', 's2', 'string2'),
         array('.', null),
       )),
@@ -264,7 +263,7 @@ final class PhutilPHPFragmentLexer extends PhutilLexer {
         array($identifier_ns_pattern, 'nc'),
         array('', null, '!pop'),
       )),
-
     );
   }
+
 }

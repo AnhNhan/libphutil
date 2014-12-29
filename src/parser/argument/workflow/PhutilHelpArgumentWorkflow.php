@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group console
- */
 final class PhutilHelpArgumentWorkflow extends PhutilArgumentWorkflow {
 
   protected function didConstruct() {
@@ -20,7 +17,8 @@ EOHELP
         array(
           'name'      => 'help-with-what',
           'wildcard'  => true,
-        )));
+        ),
+      ));
   }
 
   public function isExecutable() {

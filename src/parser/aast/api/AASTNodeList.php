@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group aast
- */
 final class AASTNodeList implements Iterator, Countable {
 
   protected $list;
@@ -51,9 +48,7 @@ final class AASTNodeList implements Iterator, Countable {
     return $obj;
   }
 
-  protected function __construct() {
-
-  }
+  protected function __construct() {}
 
   public function getDescription() {
     if (empty($this->list)) {
@@ -61,9 +56,9 @@ final class AASTNodeList implements Iterator, Countable {
     }
 
     $desc = array();
-    $desc[] = "a list of ".count($this->list)." nodes:";
+    $desc[] = 'a list of '.count($this->list).' nodes:';
     foreach ($this->list as $node) {
-      $desc[] = '  '.$node->getDescription().";";
+      $desc[] = '  '.$node->getDescription().';';
     }
 
     return implode("\n", $desc);
