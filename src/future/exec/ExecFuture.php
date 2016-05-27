@@ -19,7 +19,7 @@
  * @task interact Interacting With Commands
  * @task internal Internals
  */
-final class ExecFuture extends Future {
+final class ExecFuture extends PhutilExecutableFuture {
 
   private $pipes        = array();
   private $proc         = null;
@@ -35,8 +35,6 @@ final class ExecFuture extends Future {
   private $stdoutPos    = 0;
   private $stderrPos    = 0;
   private $command      = null;
-  private $env          = null;
-  private $cwd;
 
   private $readBufferSize;
   private $stdoutSizeLimit = PHP_INT_MAX;
@@ -44,6 +42,10 @@ final class ExecFuture extends Future {
 
   private $profilerCallID;
   private $killedByTimeout;
+
+  private $useWindowsFileStreams = false;
+  private $windowsStdoutTempFile = null;
+  private $windowsStderrTempFile = null;
 
   private static $descriptorSpec = array(
     0 => array('pipe', 'r'),  // stdin
@@ -177,54 +179,16 @@ final class ExecFuture extends Future {
 
 
   /**
-   * Set the current working directory to use when executing the command.
+   * Set whether to use non-blocking streams on Windows.
    *
-   * @param string Directory to set as CWD before executing the command.
+   * @param bool Whether to use non-blocking streams.
    * @return this
    * @task config
    */
-  public function setCWD($cwd) {
-    $this->cwd = $cwd;
-    return $this;
-  }
-
-
-  /**
-   * Set the environment variables to use when executing the command.
-   *
-   * @param array Environment variables to use when executing the command.
-   * @return this
-   * @task config
-   */
-  public function setEnv($env, $wipe_process_env = false) {
-    if ($wipe_process_env) {
-      $this->env = $env;
-    } else {
-      $this->env = $env + $_ENV;
+  public function setUseWindowsFileStreams($use_streams) {
+    if (phutil_is_windows()) {
+      $this->useWindowsFileStreams = $use_streams;
     }
-    return $this;
-  }
-
-
-  /**
-   * Set the value of a specific environmental variable for this command.
-   *
-   * @param string Environmental variable name.
-   * @param string|null New value, or null to remove this variable.
-   * @return this
-   * @task config
-   */
-  public function updateEnv($key, $value) {
-    if (!is_array($this->env)) {
-      $this->env = $_ENV;
-    }
-
-    if ($value === null) {
-      unset($this->env[$key]);
-    } else {
-      $this->env[$key] = $value;
-    }
-
     return $this;
   }
 
@@ -395,7 +359,7 @@ final class ExecFuture extends Future {
     if ($err) {
       $cmd = $this->command;
       throw new CommandException(
-        "Command failed with error #{$err}!",
+        pht('Command failed with error #%d!', $err),
         $cmd,
         $err,
         $stdout,
@@ -420,25 +384,29 @@ final class ExecFuture extends Future {
     if (strlen($stderr)) {
       $cmd = $this->command;
       throw new CommandException(
-        "JSON command '{$cmd}' emitted text to stderr when none was expected: ".
-        $stderr,
+        pht(
+          "JSON command '%s' emitted text to stderr when none was expected: %d",
+          $cmd,
+          $stderr),
         $cmd,
         0,
         $stdout,
         $stderr);
     }
-    $object = json_decode($stdout, true);
-    if (!is_array($object)) {
+    try {
+      return phutil_json_decode($stdout);
+    } catch (PhutilJSONParserException $ex) {
       $cmd = $this->command;
       throw new CommandException(
-        "JSON command '{$cmd}' did not produce a valid JSON object on stdout: ".
-        $stdout,
+        pht(
+          "JSON command '%s' did not produce a valid JSON object on stdout: %s",
+          $cmd,
+          $stdout),
         $cmd,
         0,
         $stdout,
         $stderr);
     }
-    return $object;
   }
 
   /**
@@ -566,7 +534,7 @@ final class ExecFuture extends Future {
     do {
       $data = fread($stream, min($length, 64 * 1024));
       if (false === $data) {
-        throw new Exception('Failed to read from '.$description);
+        throw new Exception(pht('Failed to read from %s', $description));
       }
 
       $read_bytes = strlen($data);
@@ -636,6 +604,14 @@ final class ExecFuture extends Future {
         }
       }
 
+      if ($this->hasEnv()) {
+        $env = $this->getEnv();
+      } else {
+        $env = null;
+      }
+
+      $cwd = $this->getCWD();
+
       // NOTE: See note above about Phage.
       if (class_exists('PhutilErrorTrap')) {
         $trap = new PhutilErrorTrap();
@@ -643,12 +619,46 @@ final class ExecFuture extends Future {
         $trap = null;
       }
 
+      $spec = self::$descriptorSpec;
+      if ($this->useWindowsFileStreams) {
+        $this->windowsStdoutTempFile = new TempFile();
+        $this->windowsStderrTempFile = new TempFile();
+
+        $spec = array(
+          0 => self::$descriptorSpec[0],  // stdin
+          1 => fopen($this->windowsStdoutTempFile, 'wb'),  // stdout
+          2 => fopen($this->windowsStderrTempFile, 'wb'),  // stderr
+        );
+
+        if (!$spec[1] || !$spec[2]) {
+          throw new Exception(pht(
+            'Unable to create temporary files for '.
+            'Windows stdout / stderr streams'));
+        }
+      }
+
       $proc = @proc_open(
         $unmasked_command,
-        self::$descriptorSpec,
+        $spec,
         $pipes,
-        $this->cwd,
-        $this->env);
+        $cwd,
+        $env);
+
+      if ($this->useWindowsFileStreams) {
+        fclose($spec[1]);
+        fclose($spec[2]);
+        $pipes = array(
+          0 => head($pipes),  // stdin
+          1 => fopen($this->windowsStdoutTempFile, 'rb'),  // stdout
+          2 => fopen($this->windowsStderrTempFile, 'rb'),  // stderr
+        );
+
+        if (!$pipes[1] || !$pipes[2]) {
+          throw new Exception(pht(
+            'Unable to open temporary files for '.
+            'reading Windows stdout / stderr streams'));
+        }
+      }
 
       if ($trap) {
         $err = $trap->getErrorsAsString();
@@ -658,7 +668,11 @@ final class ExecFuture extends Future {
       }
 
       if (!is_resource($proc)) {
-        throw new Exception("Failed to proc_open(): {$err}");
+        throw new Exception(
+          pht(
+            'Failed to `%s`: %s',
+            'proc_open()',
+            $err));
       }
 
       $this->pipes = $pipes;
@@ -668,15 +682,15 @@ final class ExecFuture extends Future {
 
       if (!phutil_is_windows()) {
 
-        // On Windows, there's no such thing as nonblocking interprocess I/O.
-        // Just leave the sockets blocking and hope for the best. Some features
-        // will not work.
+        // On Windows, we redirect process standard output and standard error
+        // through temporary files, and then use stream_select to determine
+        // if there's more data to read.
 
         if ((!stream_set_blocking($stdout, false)) ||
             (!stream_set_blocking($stderr, false)) ||
             (!stream_set_blocking($stdin,  false))) {
           $this->__destruct();
-          throw new Exception('Failed to set streams nonblocking.');
+          throw new Exception(pht('Failed to set streams nonblocking.'));
         }
       }
 
@@ -696,7 +710,7 @@ final class ExecFuture extends Future {
 
       $bytes = fwrite($stdin, $write_segment);
       if ($bytes === false) {
-        throw new Exception('Unable to write to stdin!');
+        throw new Exception(pht('Unable to write to stdin!'));
       } else if ($bytes) {
         $this->stdin->removeBytesFromHead($bytes);
       } else {
@@ -736,9 +750,35 @@ final class ExecFuture extends Future {
         $max_stderr_read_bytes);
     }
 
+    $is_done = false;
     if (!$status['running']) {
+      // We may still have unread bytes on stdout or stderr, particularly if
+      // this future is being buffered and streamed. If we do, we don't want to
+      // consider the subprocess to have exited until we've read everything.
+      // See T9724 for context.
+      if (feof($stdout) && feof($stderr)) {
+        $is_done = true;
+      }
+    }
+
+    if ($is_done) {
+      if ($this->useWindowsFileStreams) {
+        fclose($stdout);
+        fclose($stderr);
+      }
+
+      // If the subprocess got nuked with `kill -9`, we get a -1 exitcode.
+      // Upgrade this to a slightly more informative value by examining the
+      // terminating signal code.
+      $err = $status['exitcode'];
+      if ($err == -1) {
+        if ($status['signaled']) {
+          $err = 128 + $status['termsig'];
+        }
+      }
+
       $this->result = array(
-        $status['exitcode'],
+        $err,
         $this->stdout,
         $this->stderr,
       );
@@ -824,6 +864,7 @@ final class ExecFuture extends Future {
       }
     }
     $this->procStatus = proc_get_status($this->proc);
+
     return $this->procStatus;
   }
 

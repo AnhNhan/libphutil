@@ -4,7 +4,7 @@
  * Simple event store for service calls, so they can be printed to stdout or
  * displayed in a debug console.
  */
-final class PhutilServiceProfiler {
+final class PhutilServiceProfiler extends Phobject {
 
   private static $instance;
   private $listeners = array();
@@ -57,8 +57,8 @@ final class PhutilServiceProfiler {
   }
 
   public static function installEchoListener() {
-    $instance = PhutilServiceProfiler::getInstance();
-    $instance->addListener(array('PhutilServiceProfiler', 'echoListener'));
+    $instance = self::getInstance();
+    $instance->addListener(array(__CLASS__, 'echoListener'));
   }
 
   public static function echoListener($type, $id, $data) {
@@ -102,7 +102,8 @@ final class PhutilServiceProfiler {
           break;
         case 'conduit':
           if (isset($data['size'])) {
-            $desc = $data['method'].'() <bytes = '.$data['size'].'>';
+            $desc  = $data['method'].'() ';
+            $desc .= pht('<bytes = %s>', new PhutilNumber($data['size']));
           } else {
             $desc = $data['method'].'()';
           }
@@ -113,14 +114,15 @@ final class PhutilServiceProfiler {
         case 'lint':
           $desc = $data['linter'];
           if (isset($data['paths'])) {
-            $desc .= ' <paths = '.count($data['paths']).'>';
+            $desc .= ' '.pht('<paths = %s>', phutil_count($data['paths']));
           }
           break;
         case 'lock':
           $desc = $data['name'];
           break;
         case 'event':
-          $desc = $data['kind'].' <listeners = '.$data['count'].'>';
+          $desc  = $data['kind'].' ';
+          $desc .= pht('<listeners = %s>', new PhutilNumber($data['count']));
           break;
         case 'ldap':
           $call = idx($data, 'call', '?');
@@ -146,7 +148,9 @@ final class PhutilServiceProfiler {
           break;
       }
     } else if ($is_end) {
-      $desc = number_format((int)(1000000 * $data['duration'])).' us';
+      $desc = pht(
+        '%s us',
+        new PhutilNumber((int)(1000000 * $data['duration'])));
     }
 
     $console = PhutilConsole::getConsole();

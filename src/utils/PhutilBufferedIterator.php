@@ -12,7 +12,7 @@
  * @task config   Configuration
  * @task iterator Iterator Implementation
  */
-abstract class PhutilBufferedIterator implements Iterator {
+abstract class PhutilBufferedIterator extends Phobject implements Iterator {
 
   private $data;
   private $pageSize = 100;
@@ -89,7 +89,7 @@ abstract class PhutilBufferedIterator implements Iterator {
    * @task iterator
    */
   final public function valid() {
-    return (bool)$this->data;
+    return (bool)count($this->data);
   }
 
 

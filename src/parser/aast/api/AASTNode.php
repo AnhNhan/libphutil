@@ -1,17 +1,21 @@
 <?php
 
-abstract class AASTNode {
+abstract class AASTNode extends Phobject {
 
-  protected $id;
+  private $id;
   protected $l;
   protected $r;
-  protected $typeID;
+  private $typeID;
+  private $typeName;
   protected $tree;
 
-  // These are public only as a microoptimization to make tree construction
-  // faster; do not access them directly.
-  public $children = array();
-  public $parentNode;
+  private $children = array();
+  private $parentNode = null;
+  private $previousSibling = null;
+  private $nextSibling = null;
+
+  private $selectCache;
+  private $tokenCache;
 
   abstract public function isStaticScalar();
   abstract public function getDocblockToken();
@@ -34,19 +38,46 @@ abstract class AASTNode {
     $this->tree = $tree;
   }
 
-  public function getParentNode() {
+  final public function getParentNode() {
     return $this->parentNode;
   }
 
-  public function getID() {
+  final public function setParentNode(AASTNode $node = null) {
+    $this->parentNode = $node;
+    return $this;
+  }
+
+  final public function getPreviousSibling() {
+    return $this->previousSibling;
+  }
+
+  final public function setPreviousSibling(AASTNode $node = null) {
+    $this->previousSibling = $node;
+    return $this;
+  }
+
+  final public function getNextSibling() {
+    return $this->nextSibling;
+  }
+
+  final public function setNextSibling(AASTNode $node = null) {
+    $this->nextSibling = $node;
+    return $this;
+  }
+
+  final public function getID() {
     return $this->id;
   }
 
-  public function getTypeID() {
+  final public function getTypeID() {
     return $this->typeID;
   }
 
-  public function getTypeName() {
+  final public function getTree() {
+    return $this->tree;
+  }
+
+  final public function getTypeName() {
     if (empty($this->typeName)) {
       $this->typeName =
         $this->tree->getNodeTypeNameFromTypeID($this->getTypeID());
@@ -54,8 +85,15 @@ abstract class AASTNode {
     return $this->typeName;
   }
 
-  public function getChildren() {
+  final public function getChildren() {
     return $this->children;
+  }
+
+  final public function setChildren(array $children) {
+    // We don't call `assert_instances_of($children, 'AASTNode')` because doing
+    // so would incur a significant performance penalty.
+    $this->children = $children;
+    return $this;
   }
 
   public function getChildrenOfType($type) {
@@ -74,8 +112,11 @@ abstract class AASTNode {
     $child = $this->getChildByIndex($index);
     if ($child->getTypeName() != $type) {
       throw new Exception(
-        "Child in position '{$index}' is not of type '{$type}': ".
-        $this->getDescription());
+        pht(
+          "Child in position '%d' is not of type '%s': %s",
+          $index,
+          $type,
+          $this->getDescription()));
     }
 
     return $child;
@@ -92,7 +133,7 @@ abstract class AASTNode {
       ++$idx;
     }
 
-    throw new Exception("No child with index '{$index}'.");
+    throw new Exception(pht("No child with index '%d'.", $index));
   }
 
   /**
@@ -170,6 +211,16 @@ abstract class AASTNode {
     return $tokens;
   }
 
+  final public function isDescendantOf(AASTNode $node) {
+    for ($it = $this; $it !== null; $it = $it->getParentNode()) {
+      if ($it === $node) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   public function selectDescendantsOfType($type_name) {
     return $this->selectDescendantsOfTypes(array($type_name));
   }
@@ -232,6 +283,23 @@ abstract class AASTNode {
     return implode('', mpull($tokens, 'getValue'));
   }
 
+  public function getIndentation() {
+    $tokens = $this->getTokens();
+    $left = head($tokens);
+
+    while ($left &&
+           (!$left->isAnyWhitespace() ||
+            strpos($left->getValue(), "\n") === false)) {
+      $left = $left->getPrevToken();
+    }
+
+    if (!$left) {
+      return null;
+    }
+
+    return preg_replace("/^.*\n/s", '', $left->getValue());
+  }
+
   public function getDescription() {
     $concrete = $this->getConcreteString();
     if (strlen($concrete) > 75) {
@@ -240,14 +308,14 @@ abstract class AASTNode {
 
     $concrete = addcslashes($concrete, "\\\n\"");
 
-    return 'a node of type '.$this->getTypeName().': "'.$concrete.'"';
+    return pht('a node of type %s: "%s"', $this->getTypeName(), $concrete);
   }
 
-  protected function getTypeIDFromTypeName($type_name) {
+  final protected function getTypeIDFromTypeName($type_name) {
     return $this->tree->getNodeTypeIDFromTypeName($type_name);
   }
 
-  public function getOffset() {
+  final public function getOffset() {
     $stream = $this->tree->getRawTokenStream();
     if (empty($stream[$this->l])) {
       return null;
@@ -255,7 +323,7 @@ abstract class AASTNode {
     return $stream[$this->l]->getOffset();
   }
 
-  public function getLength() {
+  final public function getLength() {
     $stream = $this->tree->getRawTokenStream();
     if (empty($stream[$this->r])) {
       return null;
@@ -281,14 +349,48 @@ abstract class AASTNode {
     return array($before, $after);
   }
 
-  public function getLineNumber() {
+  final public function getLineNumber() {
     return idx($this->tree->getOffsetToLineNumberMap(), $this->getOffset());
   }
 
-  public function getEndLineNumber() {
+  final public function getEndLineNumber() {
     return idx(
       $this->tree->getOffsetToLineNumberMap(),
       $this->getOffset() + $this->getLength());
+  }
+
+  /**
+   * Determines whether the current node appears //after// a specified node in
+   * the tree.
+   *
+   * @param  AASTNode
+   * @return bool
+   */
+  final public function isAfter(AASTNode $node) {
+    return head($this->getTokens())->getOffset() >
+           last($node->getTokens())->getOffset();
+  }
+
+  /**
+   * Determines whether the current node appears //before// a specified node in
+   * the tree.
+   *
+   * @param  AASTNode
+   * @return bool
+   */
+  final public function isBefore(AASTNode $node) {
+    return last($this->getTokens())->getOffset() <
+           head($node->getTokens())->getOffset();
+  }
+
+  /**
+   * Determines whether a specified node is a descendant of the current node.
+   *
+   * @param  AASTNode
+   * @return bool
+   */
+  final public function containsDescendant(AASTNode $node) {
+    return !$this->isAfter($node) && !$this->isBefore($node);
   }
 
   public function dispose() {

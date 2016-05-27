@@ -14,6 +14,7 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
   private $metadata = array();
   private $states = array();
   private $postprocessRules = array();
+  private $storage;
 
   public function setConfig($key, $value) {
     $this->config[$key] = $value;
@@ -103,7 +104,7 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
 
   public function popState($state) {
     if (empty($this->states[$state])) {
-      throw new Exception("State '{$state}' pushed more than popped!");
+      throw new Exception(pht("State '%s' pushed more than popped!", $state));
     }
     $this->states[$state]--;
     if (!$this->states[$state]) {
@@ -129,7 +130,7 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
     $output = $this->flattenOutput($output);
 
     $map = $this->storage->getMap();
-    unset($this->storage);
+    $this->storage = null;
     $metadata = $this->metadata;
 
 
@@ -183,7 +184,7 @@ final class PhutilRemarkupEngine extends PhutilMarkupEngine {
       }
 
       if ($starting_cursor === $cursor) {
-        throw new Exception('Block in text did not match any block rule.');
+        throw new Exception(pht('Block in text did not match any block rule.'));
       }
     }
 

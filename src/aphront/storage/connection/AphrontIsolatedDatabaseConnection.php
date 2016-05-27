@@ -9,6 +9,9 @@ final class AphrontIsolatedDatabaseConnection
 
   private $transcript = array();
 
+  private $allResults;
+  private $affectedRows;
+
   public function __construct(array $configuration) {
     $this->configuration = $configuration;
 
@@ -17,6 +20,10 @@ final class AphrontIsolatedDatabaseConnection
       // collisions and make them distinctive.
       self::$nextInsertID = 55555000000 + mt_rand(0, 1000);
     }
+  }
+
+  public function openConnection() {
+    return;
   }
 
   public function close() {
@@ -82,9 +89,12 @@ final class AphrontIsolatedDatabaseConnection
 
     if (!preg_match('/^[\s<>K]*('.$preg_keywords.')\s*/i', $raw_query)) {
       throw new AphrontNotSupportedQueryException(
-        "Database isolation currently only supports some queries. You are ".
-        "trying to issue a query which does not begin with an allowed ".
-        "keyword (".implode(', ', $keywords)."): '".$raw_query."'");
+        pht(
+          "Database isolation currently only supports some queries. You are ".
+          "trying to issue a query which does not begin with an allowed ".
+          "keyword (%s): '%s'.",
+          implode(', ', $keywords),
+          $raw_query));
     }
 
     $this->transcript[] = $raw_query;

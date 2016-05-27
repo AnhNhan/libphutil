@@ -280,18 +280,18 @@ function phutil_utf8_console_strlen($string) {
 
       $len += 1 +
         ($c >= 0x1100 &&
-          ($c <= 0x115f ||                    /* Hangul Jamo init. consonants */
-            $c == 0x2329 || $c == 0x232a ||
-            ($c >= 0x2e80 && $c <= 0xa4cf &&
-              $c != 0x303f) ||                  /* CJK ... Yi */
-            ($c >= 0xac00 && $c <= 0xd7a3) || /* Hangul Syllables */
-            ($c >= 0xf900 && $c <= 0xfaff) || /* CJK Compatibility Ideographs */
-            ($c >= 0xfe10 && $c <= 0xfe19) || /* Vertical forms */
-            ($c >= 0xfe30 && $c <= 0xfe6f) || /* CJK Compatibility Forms */
-            ($c >= 0xff00 && $c <= 0xff60) || /* Fullwidth Forms */
-            ($c >= 0xffe0 && $c <= 0xffe6) ||
-            ($c >= 0x20000 && $c <= 0x2fffd) ||
-            ($c >= 0x30000 && $c <= 0x3fffd)));
+          ($c <= 0x115F ||                    /* Hangul Jamo init. consonants */
+            $c == 0x2329 || $c == 0x232A ||
+            ($c >= 0x2E80 && $c <= 0xA4CF &&
+              $c != 0x303F) ||                  /* CJK ... Yi */
+            ($c >= 0xAC00 && $c <= 0xD7A3) || /* Hangul Syllables */
+            ($c >= 0xF900 && $c <= 0xFAFF) || /* CJK Compatibility Ideographs */
+            ($c >= 0xFE10 && $c <= 0xFE19) || /* Vertical forms */
+            ($c >= 0xFE30 && $c <= 0xFE6F) || /* CJK Compatibility Forms */
+            ($c >= 0xFF00 && $c <= 0xFF60) || /* Fullwidth Forms */
+            ($c >= 0xFFE0 && $c <= 0xFFE6) ||
+            ($c >= 0x20000 && $c <= 0x2FFFD) ||
+            ($c >= 0x30000 && $c <= 0x3FFFD)));
 
       break;
     }
@@ -306,20 +306,28 @@ function phutil_utf8_console_strlen($string) {
  * also split.
  *
  * @param string A valid utf-8 string.
+ * @param int|null Stop processing after examining this many bytes.
  * @return list  A list of characters in the string.
  */
-function phutil_utf8v($string) {
+function phutil_utf8v($string, $byte_limit = null) {
   $res = array();
   $len = strlen($string);
+
   $ii = 0;
   while ($ii < $len) {
     $byte = $string[$ii];
     if ($byte <= "\x7F") {
       $res[] = $byte;
       $ii += 1;
+
+      if ($byte_limit && ($ii >= $byte_limit)) {
+        break;
+      }
+
       continue;
     } else if ($byte < "\xC0") {
-      throw new Exception('Invalid UTF-8 string passed to phutil_utf8v().');
+      throw new Exception(
+        pht('Invalid UTF-8 string passed to %s.', __FUNCTION__));
     } else if ($byte <= "\xDF") {
       $seq_len = 2;
     } else if ($byte <= "\xEF") {
@@ -331,20 +339,28 @@ function phutil_utf8v($string) {
     } else if ($byte <= "\xFD") {
       $seq_len = 6;
     } else {
-      throw new Exception('Invalid UTF-8 string passed to phutil_utf8v().');
+      throw new Exception(
+        pht('Invalid UTF-8 string passed to %s.', __FUNCTION__));
     }
 
     if ($ii + $seq_len > $len) {
-      throw new Exception('Invalid UTF-8 string passed to phutil_utf8v().');
+      throw new Exception(
+        pht('Invalid UTF-8 string passed to %s.', __FUNCTION__));
     }
     for ($jj = 1; $jj < $seq_len; ++$jj) {
       if ($string[$ii + $jj] >= "\xC0") {
-        throw new Exception('Invalid UTF-8 string passed to phutil_utf8v().');
+        throw new Exception(
+          pht('Invalid UTF-8 string passed to %s.', __FUNCTION__));
       }
     }
     $res[] = substr($string, $ii, $seq_len);
     $ii += $seq_len;
+
+    if ($byte_limit && ($ii >= $byte_limit)) {
+      break;
+    }
   }
+
   return $res;
 }
 
@@ -369,26 +385,26 @@ function phutil_utf8v_codepoints($string) {
          + ((ord($char[1]) & 0x3F));
     } else if (($c & 0xF0) == 0xE0) {
       $v = (($c & 0x0F) << 12)
-         + ((ord($char[1]) & 0x3f) << 6)
-         + ((ord($char[2]) & 0x3f));
+         + ((ord($char[1]) & 0x3F) << 6)
+         + ((ord($char[2]) & 0x3F));
     } else if (($c & 0xF8) == 0xF0) {
       $v = (($c & 0x07) << 18)
          + ((ord($char[1]) & 0x3F) << 12)
          + ((ord($char[2]) & 0x3F) << 6)
-         + ((ord($char[3]) & 0x3f));
+         + ((ord($char[3]) & 0x3F));
     } else if (($c & 0xFC) == 0xF8) {
       $v = (($c & 0x03) << 24)
          + ((ord($char[1]) & 0x3F) << 18)
          + ((ord($char[2]) & 0x3F) << 12)
-         + ((ord($char[3]) & 0x3f) << 6)
-         + ((ord($char[4]) & 0x3f));
+         + ((ord($char[3]) & 0x3F) << 6)
+         + ((ord($char[4]) & 0x3F));
     } else if (($c & 0xFE) == 0xFC) {
       $v = (($c & 0x01) << 30)
          + ((ord($char[1]) & 0x3F) << 24)
          + ((ord($char[2]) & 0x3F) << 18)
-         + ((ord($char[3]) & 0x3f) << 12)
-         + ((ord($char[4]) & 0x3f) << 6)
-         + ((ord($char[5]) & 0x3f));
+         + ((ord($char[3]) & 0x3F) << 12)
+         + ((ord($char[4]) & 0x3F) << 6)
+         + ((ord($char[5]) & 0x3F));
     }
 
     $str_v[$key] = $v;
@@ -515,13 +531,15 @@ function phutil_utf8_hard_wrap($string, $width) {
 function phutil_utf8_convert($string, $to_encoding, $from_encoding) {
   if (!$from_encoding) {
     throw new InvalidArgumentException(
-      'Attempting to convert a string encoding, but no source encoding '.
-      'was provided. Explicitly provide the source encoding.');
+      pht(
+        'Attempting to convert a string encoding, but no source encoding '.
+        'was provided. Explicitly provide the source encoding.'));
   }
   if (!$to_encoding) {
     throw new InvalidArgumentException(
-      'Attempting to convert a string encoding, but no target encoding '.
-      'was provided. Explicitly provide the target encoding.');
+      pht(
+        'Attempting to convert a string encoding, but no target encoding '.
+        'was provided. Explicitly provide the target encoding.'));
   }
 
   // Normalize encoding names so we can no-op the very common case of UTF8
@@ -534,10 +552,14 @@ function phutil_utf8_convert($string, $to_encoding, $from_encoding) {
 
   if (!function_exists('mb_convert_encoding')) {
     throw new Exception(
-      "Attempting to convert a string encoding from '{$from_encoding}' ".
-      "to '{$to_encoding}', but the 'mbstring' PHP extension is not ".
-      "available. Install mbstring to work with encodings other than ".
-      "UTF-8.");
+      pht(
+        "Attempting to convert a string encoding from '%s' to '%s', ".
+        "but the '%s' PHP extension is not available. Install %s to ".
+        "work with encodings other than UTF-8.",
+        $from_encoding,
+        $to_encoding,
+        'mbstring',
+        'mbstring'));
   }
 
   $result = @mb_convert_encoding($string, $to_encoding, $from_encoding);
@@ -545,11 +567,14 @@ function phutil_utf8_convert($string, $to_encoding, $from_encoding) {
   if ($result === false) {
     $message = error_get_last();
     if ($message) {
-      $message = idx($message, 'message', 'Unknown error.');
+      $message = idx($message, 'message', pht('Unknown error.'));
     }
     throw new Exception(
-      "String conversion from encoding '{$from_encoding}' to encoding ".
-      "'{$to_encoding}' failed: {$message}");
+      pht(
+        "String conversion from encoding '%s' to encoding '%s' failed: %s",
+        $from_encoding,
+        $to_encoding,
+        $message));
   }
 
   return $result;
@@ -696,6 +721,7 @@ function phutil_utf8_is_combining_character($character) {
   return false;
 }
 
+
 /**
  * Split a UTF-8 string into an array of characters. Combining characters
  * are not split.
@@ -705,30 +731,53 @@ function phutil_utf8_is_combining_character($character) {
  */
 function phutil_utf8v_combined($string) {
   $components = phutil_utf8v($string);
-  $array_length = count($components);
+  return phutil_utf8v_combine_characters($components);
+}
 
-  // If the first character in the string is a combining character,
-  // prepend a space to the string.
-  if (
-    $array_length > 0 &&
-    phutil_utf8_is_combining_character($components[0])) {
-    $string = ' '.$string;
-    $components = phutil_utf8v($string);
-    $array_length++;
+
+/**
+ * Merge combining characters in a UTF-8 string.
+ *
+ * This is a low-level method which can allow other operations to do less work.
+ * If you have a string, call @{method:phutil_utf8v_combined} instead.
+ *
+ * @param list List of UTF-8 characters.
+ * @return list List of UTF-8 strings with combining characters merged.
+ */
+function phutil_utf8v_combine_characters(array $characters) {
+  if (!$characters) {
+    return array();
   }
 
-  for ($index = 1; $index < $array_length; $index++) {
-    if (phutil_utf8_is_combining_character($components[$index])) {
-      $components[$index - 1] =
-        $components[$index - 1].$components[$index];
+  // If the first character in the string is a combining character,
+  // start with a space.
+  if (phutil_utf8_is_combining_character($characters[0])) {
+    $buf = ' ';
+  } else {
+    $buf = null;
+  }
 
-      unset($components[$index]);
-      $components = array_values($components);
+  $parts = array();
+  foreach ($characters as $character) {
+    if (!isset($character[1])) {
+      // This an optimization: there are no one-byte combining characters,
+      // so we can just pass these through unmodified.
+      $is_combining = false;
+    } else {
+      $is_combining = phutil_utf8_is_combining_character($character);
+    }
 
-      $index --;
-      $array_length = count($components);
+    if ($is_combining) {
+      $buf .= $character;
+    } else {
+      if ($buf !== null) {
+        $parts[] = $buf;
+      }
+      $buf = $character;
     }
   }
 
-  return $components;
+  $parts[] = $buf;
+
+  return $parts;
 }

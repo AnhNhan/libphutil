@@ -39,7 +39,7 @@
  *    string (uppercase)
  *
  */
-final class PhutilTypeSpec {
+final class PhutilTypeSpec extends Phobject {
 
   private $type;
   private $subtypes = array();
@@ -166,12 +166,21 @@ final class PhutilTypeSpec {
 
     foreach ($types as $key => $type) {
       if (array_key_exists($key, $values)) {
-        $type->check($values[$key]);
+        $type->check($values[$key], $key);
       }
     }
   }
 
   public static function getCommonParentClass($class_a, $class_b) {
+    // Make sure both classes are really classes.
+    try {
+      if (!class_exists($class_a) || !class_exists($class_b)) {
+        return null;
+      }
+    } catch (PhutilMissingSymbolException $ex) {
+      return null;
+    }
+
     $ancestors_a = array();
     do {
       $ancestors_a[] = $class_a;
@@ -361,7 +370,7 @@ final class PhutilTypeSpec {
         }
         return $result;
       default:
-        throw new Exception("Unhandled parser rule '{$rule}'!");
+        throw new Exception(pht("Unhandled parser rule '%s'!", $rule));
     }
   }
 

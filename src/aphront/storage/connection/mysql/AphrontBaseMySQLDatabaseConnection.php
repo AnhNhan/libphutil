@@ -27,6 +27,10 @@ abstract class AphrontBaseMySQLDatabaseConnection
     $this->establishConnection();
   }
 
+  public function openConnection() {
+    $this->requireConnection();
+  }
+
   public function close() {
     if ($this->lastResult) {
       $this->lastResult = null;
@@ -101,7 +105,7 @@ abstract class AphrontBaseMySQLDatabaseConnection
         if ($retries && $ex->getCode() == 2003) {
           $class = get_class($ex);
           $message = $ex->getMessage();
-          phlog("Retrying ({$retries}) after {$class}: {$message}");
+          phlog(pht('Retrying (%d) after %s: %s', $retries, $class, $message));
         } else {
           $profiler->endServiceCall($call_id, array());
           throw $ex;
@@ -140,7 +144,7 @@ abstract class AphrontBaseMySQLDatabaseConnection
     $result = array();
     $res = $this->lastResult;
     if ($res == null) {
-      throw new Exception('No query result to fetch from!');
+      throw new Exception(pht('No query result to fetch from!'));
     }
     while (($row = $this->fetchAssoc($res))) {
       $result[] = $row;
@@ -180,6 +184,8 @@ abstract class AphrontBaseMySQLDatabaseConnection
 
         $this->throwQueryException($this->connection);
       } catch (AphrontConnectionLostQueryException $ex) {
+        $can_retry = ($retries > 0);
+
         if ($this->isInsideTransaction()) {
           // Zero out the transaction state to prevent a second exception
           // ("program exited with open transaction") from being thrown, since
@@ -189,17 +195,17 @@ abstract class AphrontBaseMySQLDatabaseConnection
             $state->decreaseDepth();
           }
 
-          // We can't close the connection before this because
-          // isInsideTransaction() and getTransactionState() depend on the
-          // connection.
-          $this->close();
+          $can_retry = false;
+        }
 
-          throw $ex;
+        if ($this->isHoldingAnyLock()) {
+          $this->forgetAllLocks();
+          $can_retry = false;
         }
 
         $this->close();
 
-        if (!$retries) {
+        if (!$can_retry) {
           throw $ex;
         }
       }
@@ -257,16 +263,24 @@ abstract class AphrontBaseMySQLDatabaseConnection
     //   (SELECT ...) UNION (SELECT ...)
     $is_write = !preg_match('/^[(]*(SELECT|SHOW|EXPLAIN)\s/', $raw_query);
     if ($is_write) {
+      if ($this->getReadOnly()) {
+        throw new Exception(
+          pht(
+            'Attempting to issue a write query on a read-only '.
+            'connection (to database "%s")!',
+            $this->getConfiguration('database')));
+      }
       AphrontWriteGuard::willWrite();
       return true;
     }
+
     return false;
   }
 
   protected function throwQueryException($connection) {
     if ($this->nextError) {
       $errno = $this->nextError;
-      $error = 'Simulated error.';
+      $error = pht('Simulated error.');
       $this->nextError = null;
     } else {
       $errno = $this->getErrorCode($connection);
@@ -275,38 +289,70 @@ abstract class AphrontBaseMySQLDatabaseConnection
     $this->throwQueryCodeException($errno, $error);
   }
 
-  protected function throwQueryCodeException($errno, $error) {
-    $exmsg = "#{$errno}: {$error}";
+  private function throwCommonException($errno, $error) {
+    $message = pht('#%d: %s', $errno, $error);
 
     switch ($errno) {
       case 2013: // Connection Dropped
-        throw new AphrontConnectionLostQueryException($exmsg);
+        throw new AphrontConnectionLostQueryException($message);
       case 2006: // Gone Away
-        $more = "This error may occur if your MySQL 'wait_timeout' ".
-                "or 'max_allowed_packet' configuration values are set too low.";
-        throw new AphrontConnectionLostQueryException("{$exmsg}\n\n{$more}");
+        $more = pht(
+          "This error may occur if your MySQL '%s' or '%s' ".
+          "configuration values are set too low.",
+          'wait_timeout',
+          'max_allowed_packet');
+        throw new AphrontConnectionLostQueryException("{$message}\n\n{$more}");
       case 1213: // Deadlock
+        throw new AphrontDeadlockQueryException($message);
       case 1205: // Lock wait timeout exceeded
-        throw new AphrontDeadlockQueryException($exmsg);
+        throw new AphrontLockTimeoutQueryException($message);
       case 1062: // Duplicate Key
         // NOTE: In some versions of MySQL we get a key name back here, but
         // older versions just give us a key index ("key 2") so it's not
         // portable to parse the key out of the error and attach it to the
         // exception.
-        throw new AphrontDuplicateKeyQueryException($exmsg);
+        throw new AphrontDuplicateKeyQueryException($message);
       case 1044: // Access denied to database
-      case 1045: // Access denied (auth)
       case 1142: // Access denied to table
       case 1143: // Access denied to column
-        throw new AphrontAccessDeniedQueryException($exmsg);
+      case 1227: // Access denied (e.g., no SUPER for SHOW SLAVE STATUS).
+        throw new AphrontAccessDeniedQueryException($message);
+      case 1045: // Access denied (auth)
+        throw new AphrontInvalidCredentialsQueryException($message);
       case 1146: // No such table
       case 1049: // No such database
       case 1054: // Unknown column "..." in field list
-        throw new AphrontSchemaQueryException($exmsg);
-      default:
-        // TODO: 1064 is syntax error, and quite terrible in production.
-        throw new AphrontQueryException($exmsg);
+        throw new AphrontSchemaQueryException($message);
     }
+
+    // TODO: 1064 is syntax error, and quite terrible in production.
+
+    return null;
+  }
+
+  protected function throwConnectionException($errno, $error, $user, $host) {
+    $this->throwCommonException($errno, $error);
+
+    $message = pht(
+      'Attempt to connect to %s@%s failed with error #%d: %s.',
+      $user,
+      $host,
+      $errno,
+      $error);
+
+    throw new AphrontConnectionQueryException($message, $errno);
+  }
+
+
+  protected function throwQueryCodeException($errno, $error) {
+    $this->throwCommonException($errno, $error);
+
+    $message = pht(
+      '#%d: %s',
+      $errno,
+      $error);
+
+    throw new AphrontQueryException($message, $errno);
   }
 
   /**

@@ -49,6 +49,39 @@ function idx(array $array, $key, $default = null) {
 
 
 /**
+ * Access a sequence of array indexes, retrieving a deeply nested value if
+ * it exists or a default if it does not.
+ *
+ * For example, `idxv($dict, array('a', 'b', 'c'))` accesses the key at
+ * `$dict['a']['b']['c']`, if it exists. If it does not, or any intermediate
+ * value is not itself an array, it returns the defualt value.
+ *
+ * @param array Array to access.
+ * @param list<string> List of keys to access, in sequence.
+ * @param wild Default value to return.
+ * @return wild Accessed value, or default if the value is not accessible.
+ */
+function idxv(array $map, array $path, $default = null) {
+  if (!$path) {
+    return $default;
+  }
+
+  $last = last($path);
+  $path = array_slice($path, 0, -1);
+
+  $cursor = $map;
+  foreach ($path as $key) {
+    $cursor = idx($cursor, $key);
+    if (!is_array($cursor)) {
+      return $default;
+    }
+  }
+
+  return idx($cursor, $last, $default);
+}
+
+
+/**
  * Call a method on a list of objects. Short for "method pull", this function
  * works just like @{function:ipull}, except that it operates on a list of
  * objects instead of a list of arrays. This function simplifies a common type
@@ -373,6 +406,50 @@ function msort(array $list, $method) {
 
 
 /**
+ * Sort a list of objects by a sort vector.
+ *
+ * This sort is stable, well-behaved, and more efficient than `usort()`.
+ *
+ * @param list List of objects to sort.
+ * @param string Name of a method to call on each object. The method must
+ *   return a @{class:PhutilSortVector}.
+ * @return list Objects ordered by the vectors.
+ */
+function msortv(array $list, $method) {
+  $surrogate = mpull($list, $method);
+
+  $index = 0;
+  foreach ($surrogate as $key => $value) {
+    if (!($value instanceof PhutilSortVector)) {
+      throw new Exception(
+        pht(
+          'Objects passed to "%s" must return sort vectors (objects of '.
+          'class "%s") from the specified method ("%s"). One object (with '.
+          'key "%s") did not.',
+          'msortv()',
+          'PhutilSortVector',
+          $method,
+          $key));
+    }
+
+    // Add the original index to keep the sort stable.
+    $value->addInt($index++);
+
+    $surrogate[$key] = (string)$value;
+  }
+
+  asort($surrogate, SORT_STRING);
+
+  $result = array();
+  foreach ($surrogate as $key => $value) {
+    $result[$key] = $list[$key];
+  }
+
+  return $result;
+}
+
+
+/**
  * Sort a list of arrays by the value of some index. This method is identical to
  * @{function:msort}, but operates on a list of arrays instead of a list of
  * objects.
@@ -420,7 +497,7 @@ function isort(array $list, $index) {
  */
 function mfilter(array $list, $method, $negate = false) {
   if (!is_string($method)) {
-    throw new InvalidArgumentException('Argument method is not a string.');
+    throw new InvalidArgumentException(pht('Argument method is not a string.'));
   }
 
   $result = array();
@@ -465,7 +542,7 @@ function mfilter(array $list, $method, $negate = false) {
  */
 function ifilter(array $list, $index, $negate = false) {
   if (!is_scalar($index)) {
-    throw new InvalidArgumentException('Argument index is not a scalar.');
+    throw new InvalidArgumentException(pht('Argument index is not a scalar.'));
   }
 
   $result = array();
@@ -529,18 +606,23 @@ function assert_instances_of(array $arr, $class) {
       if (!is_array($object)) {
         $given = gettype($object);
         throw new InvalidArgumentException(
-          "Array item with key '{$key}' must be of type array, ".
-          "{$given} given.");
+          pht(
+            "Array item with key '%s' must be of type array, %s given.",
+            $key,
+            $given));
       }
 
     } else if (!($object instanceof $class)) {
       $given = gettype($object);
       if (is_object($object)) {
-        $given = 'instance of '.get_class($object);
+        $given = pht('instance of %s', get_class($object));
       }
       throw new InvalidArgumentException(
-        "Array item with key '{$key}' must be an instance of {$class}, ".
-        "{$given} given.");
+        pht(
+          "Array item with key '%s' must be an instance of %s, %s given.",
+          $key,
+          $class,
+          $given));
     }
   }
 
@@ -576,7 +658,9 @@ function assert_stringlike($parameter) {
   }
 
   throw new InvalidArgumentException(
-    'Argument must be scalar or object which implements __toString()!');
+    pht(
+      'Argument must be scalar or object which implements %s!',
+      '__toString()'));
 }
 
 /**
@@ -735,8 +819,9 @@ function array_mergev(array $arrayv) {
     if (!is_array($item)) {
       throw new InvalidArgumentException(
         pht(
-          'Expected all items passed to array_mergev() to be arrays, but '.
+          'Expected all items passed to `%s` to be arrays, but '.
           'argument with key "%s" has type "%s".',
+          __FUNCTION__.'()',
           $key,
           gettype($item)));
     }
@@ -849,21 +934,6 @@ function phutil_is_hiphop_runtime() {
 }
 
 /**
- * Fire an event allowing any listeners to clear up any outstanding requirements
- * before the request completes abruptly.
- *
- * @param int|string $status
- */
-function phutil_exit($status = 0) {
-  $event = new PhutilEvent(
-    PhutilEventType::TYPE_WILLEXITABRUPTLY,
-    array('status' => $status));
-  PhutilEventEngine::dispatchEvent($event);
-
-  exit($status);
-}
-
-/**
  * Converts a string to a loggable one, with unprintables and newlines escaped.
  *
  * @param string  Any string.
@@ -920,7 +990,7 @@ function phutil_loggable_string($string) {
  * @param resource  Socket or pipe stream.
  * @param string    Bytes to write.
  * @return bool|int Number of bytes written, or `false` on any error (including
- *                  errors which `fpipe()` can not detect, like a broken pipe).
+ *                  errors which `fwrite()` can not detect, like a broken pipe).
  */
 function phutil_fwrite_nonblocking_stream($stream, $bytes) {
   if (!strlen($bytes)) {
@@ -991,7 +1061,8 @@ function phutil_units($description) {
     throw new InvalidArgumentException(
       pht(
         'Unable to parse unit specification (expected a specification in the '.
-        'form "5 days in seconds"): %s',
+        'form "%s"): %s',
+        '5 days in seconds',
         $description));
   }
 
@@ -1058,6 +1129,182 @@ function phutil_json_decode($string) {
 
 
 /**
+ * Encode a value in JSON, raising an exception if it can not be encoded.
+ *
+ * @param wild A value to encode.
+ * @return string JSON representation of the value.
+ */
+function phutil_json_encode($value) {
+  $result = @json_encode($value);
+  if ($result === false) {
+    $reason = phutil_validate_json($value);
+    if (function_exists('json_last_error')) {
+      $err = json_last_error();
+      if (function_exists('json_last_error_msg')) {
+        $msg = json_last_error_msg();
+        $extra = pht('#%d: %s', $err, $msg);
+      } else {
+        $extra = pht('#%d', $err);
+      }
+    } else {
+      $extra = null;
+    }
+
+    if ($extra) {
+      $message = pht(
+        'Failed to JSON encode value (%s): %s.',
+        $extra,
+        $reason);
+    } else {
+      $message = pht(
+        'Failed to JSON encode value: %s.',
+        $reason);
+    }
+
+    throw new Exception($message);
+  }
+
+  return $result;
+}
+
+
+/**
+ * Produce a human-readable explanation why a value can not be JSON-encoded.
+ *
+ * @param wild Value to validate.
+ * @param string Path within the object to provide context.
+ * @return string|null Explanation of why it can't be encoded, or null.
+ */
+function phutil_validate_json($value, $path = '') {
+  if ($value === null) {
+    return;
+  }
+
+  if ($value === true) {
+    return;
+  }
+
+  if ($value === false) {
+    return;
+  }
+
+  if (is_int($value)) {
+    return;
+  }
+
+  if (is_float($value)) {
+    return;
+  }
+
+  if (is_array($value)) {
+    foreach ($value as $key => $subvalue) {
+      if (strlen($path)) {
+        $full_key = $path.' > ';
+      } else {
+        $full_key = '';
+      }
+
+      if (!phutil_is_utf8($key)) {
+        $full_key = $full_key.phutil_utf8ize($key);
+        return pht(
+          'Dictionary key "%s" is not valid UTF8, and cannot be JSON encoded.',
+          $full_key);
+      }
+
+      $full_key .= $key;
+      $result = phutil_validate_json($subvalue, $full_key);
+      if ($result !== null) {
+        return $result;
+      }
+    }
+  }
+
+  if (is_string($value)) {
+    if (!phutil_is_utf8($value)) {
+      $display = substr($value, 0, 256);
+      $display = phutil_utf8ize($display);
+      if (!strlen($path)) {
+        return pht(
+          'String value is not valid UTF8, and can not be JSON encoded: %s',
+          $display);
+      } else {
+        return pht(
+          'Dictionary value at key "%s" is not valid UTF8, and cannot be '.
+          'JSON encoded: %s',
+          $path,
+          $display);
+      }
+    }
+  }
+
+  return;
+}
+
+
+/**
+ * Decode an INI string.
+ *
+ * @param  string
+ * @return mixed
+ */
+function phutil_ini_decode($string) {
+  $results = null;
+  $trap = new PhutilErrorTrap();
+
+  try {
+    if (!function_exists('parse_ini_string')) {
+      throw new PhutilMethodNotImplementedException(
+        pht(
+          '%s is not compatible with your version of PHP (%s). This function '.
+          'is only supported on PHP versions newer than 5.3.0.',
+          __FUNCTION__,
+          phpversion()));
+    }
+
+    $results = @parse_ini_string($string, true, INI_SCANNER_RAW);
+
+    if ($results === false) {
+      throw new PhutilINIParserException(trim($trap->getErrorsAsString()));
+    }
+
+    foreach ($results as $section => $result) {
+      if (!is_array($result)) {
+        // We JSON decode the value in ordering to perform the following
+        // conversions:
+        //
+        //   - `'true'` => `true`
+        //   - `'false'` => `false`
+        //   - `'123'` => `123`
+        //   - `'1.234'` => `1.234`
+        //
+        $result = json_decode($result, true);
+
+        if ($result !== null && !is_array($result)) {
+          $results[$section] = $result;
+        }
+
+        continue;
+      }
+
+      foreach ($result as $key => $value) {
+        $value = json_decode($value, true);
+
+        if ($value !== null && !is_array($value)) {
+          $results[$section][$key] = $value;
+        }
+      }
+    }
+  } catch (Exception $ex) {
+    $trap->destroy();
+    throw $ex;
+  }
+
+  $trap->destroy();
+  return $results;
+}
+
+
+/**
  * Attempt to censor any plaintext credentials from a string.
  *
  * The major use case here is to censor usernames and passwords from command
@@ -1120,4 +1367,120 @@ function phutil_var_export($var) {
 
   // Let PHP handle everything else.
   return var_export($var, true);
+}
+
+
+/**
+ * An improved version of `fnmatch`.
+ *
+ * @param  string  A glob pattern.
+ * @param  string  A path.
+ * @return bool
+ */
+function phutil_fnmatch($glob, $path) {
+  // Modify the glob to allow `**/` to match files in the root directory.
+  $glob = preg_replace('@(?:(?<!\\\\)\\*){2}/@', '{,*/,**/}', $glob);
+
+  $escaping = false;
+  $in_curlies = 0;
+  $regex = '';
+
+  for ($i = 0; $i < strlen($glob); $i++) {
+    $char = $glob[$i];
+    $next_char = ($i < strlen($glob) - 1) ? $glob[$i + 1] : null;
+
+    $escape = array('$', '(', ')', '+', '.', '^', '|');
+    $mapping = array();
+
+    if ($escaping) {
+      $escape[] = '*';
+      $escape[] = '?';
+      $escape[] = '{';
+    } else {
+      $mapping['*'] = $next_char === '*' ? '.*' : '[^/]*';
+      $mapping['?'] = '[^/]';
+      $mapping['{'] = '(';
+
+      if ($in_curlies) {
+        $mapping[','] = '|';
+        $mapping['}'] = ')';
+      }
+    }
+
+    if (in_array($char, $escape)) {
+      $regex .= "\\{$char}";
+    } else if ($replacement = idx($mapping, $char)) {
+      $regex .= $replacement;
+    } else if ($char === '\\') {
+      if ($escaping) {
+        $regex .= '\\\\';
+      }
+      $escaping = !$escaping;
+      continue;
+    } else {
+      $regex .= $char;
+    }
+
+    if ($char === '{' && !$escaping) {
+      $in_curlies++;
+    } else if ($char === '}' && $in_curlies && !$escaping) {
+      $in_curlies--;
+    }
+
+    $escaping = false;
+  }
+
+  if ($in_curlies || $escaping) {
+    throw new InvalidArgumentException(pht('Invalid glob pattern.'));
+  }
+
+  $regex = '(\A'.$regex.'\z)';
+  return (bool)preg_match($regex, $path);
+}
+
+
+/**
+ * Compare two hashes for equality.
+ *
+ * This function defuses two attacks: timing attacks and type juggling attacks.
+ *
+ * In a timing attack, the attacker observes that strings which match the
+ * secret take slightly longer to fail to match because more characters are
+ * compared. By testing a large number of strings, they can learn the secret
+ * character by character. This defuses timing attacks by always doing the
+ * same amount of work.
+ *
+ * In a type juggling attack, an attacker takes advantage of PHP's type rules
+ * where `"0" == "0e12345"` for any exponent. A portion of of hexadecimal
+ * hashes match this pattern and are vulnerable. This defuses this attack by
+ * performing bytewise character-by-character comparison.
+ *
+ * It is questionable how practical these attacks are, but they are possible
+ * in theory and defusing them is straightforward.
+ *
+ * @param string First hash.
+ * @param string Second hash.
+ * @return bool True if hashes are identical.
+ */
+function phutil_hashes_are_identical($u, $v) {
+  if (!is_string($u)) {
+    throw new Exception(pht('First hash argument must be a string.'));
+  }
+
+  if (!is_string($v)) {
+    throw new Exception(pht('Second hash argument must be a string.'));
+  }
+
+  if (strlen($u) !== strlen($v)) {
+    return false;
+  }
+
+  $len = strlen($v);
+
+  $bits = 0;
+  for ($ii = 0; $ii < $len; $ii++) {
+    $bits |= (ord($u[$ii]) ^ ord($v[$ii]));
+  }
+
+  return ($bits === 0);
 }

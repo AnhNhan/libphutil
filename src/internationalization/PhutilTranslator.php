@@ -1,10 +1,12 @@
 <?php
 
-final class PhutilTranslator {
+final class PhutilTranslator extends Phobject {
 
-  static private $instance;
+  private static $instance;
 
-  private $language = 'en';
+  private $locale;
+  private $localeCode;
+  private $shouldPostProcess;
   private $translations = array();
 
   public static function getInstance() {
@@ -18,8 +20,10 @@ final class PhutilTranslator {
     self::$instance = $instance;
   }
 
-  public function setLanguage($language) {
-    $this->language = $language;
+  public function setLocale(PhutilLocale $locale) {
+    $this->locale = $locale;
+    $this->localeCode = $locale->getLocaleCode();
+    $this->shouldPostProcess = $locale->shouldPostProcessTranslations();
     return $this;
   }
 
@@ -53,16 +57,42 @@ final class PhutilTranslator {
    * @param array Identifier in key, translation in value.
    * @return PhutilTranslator Provides fluent interface.
    */
-  public function addTranslations(array $translations) {
-    $this->translations = array_merge($this->translations, $translations);
+  public function setTranslations(array $translations) {
+    $this->translations = $translations;
     return $this;
   }
 
   public function translate($text /* , ... */) {
-    $translation = idx($this->translations, $text, $text);
+    if (isset($this->translations[$text])) {
+      $translation = $this->translations[$text];
+    } else {
+      $translation = $text;
+    }
+
     $args = func_get_args();
+
     while (is_array($translation)) {
-      $translation = $this->chooseVariant($translation, next($args));
+      $arg = next($args);
+      $translation = $this->chooseVariant($translation, $arg);
+      if ($translation === null) {
+        $pos = key($args);
+
+        if (is_object($arg)) {
+          $kind = get_class($arg);
+        } else {
+          $kind = gettype($arg);
+        }
+
+        return sprintf(
+          '[Invalid Translation!] The "%s" language data offers variant '.
+          'translations for the plurality or gender of argument %s, but '.
+          'the value for that argument is not an integer, PhutilNumber, or '.
+          'PhutilPerson (it is a value of type "%s"). Raw input: <%s>.',
+          $this->localeCode,
+          $pos,
+          $kind,
+          $text);
+      }
     }
     array_shift($args);
 
@@ -89,9 +119,20 @@ final class PhutilTranslator {
     }
 
     $result = vsprintf($translation, $args);
+    if ($result === false) {
+      // If vsprintf() fails (often because the translated string references
+      // too many parameters), show the bad template with a note instead of
+      // returning an empty string. This makes it easier to figure out what
+      // went wrong and fix it.
+      $result = pht('[Invalid Translation!] %s', $translation);
+    }
 
-    if ($this->language == 'en-ac') {
-      $result = strtoupper($result);
+    if ($this->shouldPostProcess) {
+      $result = $this->locale->didTranslateString(
+        $text,
+        $translation,
+        $args,
+        $result);
     }
 
     if ($is_html) {
@@ -108,40 +149,43 @@ final class PhutilTranslator {
     }
 
     if ($variant instanceof PhutilNumber) {
+      $is_sex = false;
       $variant = $variant->getNumber();
+    } else if ($variant instanceof PhutilPerson) {
+      $is_sex = true;
+      $variant = $variant->getSex();
+    } else if (is_int($variant)) {
+      $is_sex = false;
+    } else {
+      return null;
     }
 
-    switch ($this->language) {
+    if ($is_sex) {
+      return $this->locale->selectGenderVariant($variant, $translations);
+    } else {
 
-      case 'en':
-      case 'en-ac':
-        list($singular, $plural) = $translations;
+      // NOTE: This is a microoptimization which slightly improves performance
+      // for common languages with simple plural rules. Languages do not need
+      // to be added here even if they use the simple rules. The benefit of
+      // inclusion here is small, on the order of 5%.
+      static $simple_plural = array(
+        'en_US' => true,
+        'en_GB' => true,
+        'en_ES' => true,
+        'ko_KR' => true,
+      );
+
+      if (isset($simple_plural[$this->localeCode])) {
         if ($variant == 1) {
-          return $singular;
+          return reset($translations);
+        } else {
+          return end($translations);
         }
-        return $plural;
-
-      case 'cs':
-        if ($variant instanceof PhutilPerson) {
-          list($male, $female) = $translations;
-          if ($variant->getSex() == PhutilPerson::SEX_FEMALE) {
-            return $female;
-          }
-          return $male;
-        }
-
-        list($singular, $paucal, $plural) = $translations;
-        if ($variant == 1) {
-          return $singular;
-        }
-        if ($variant >= 2 && $variant <= 4) {
-          return $paucal;
-        }
-        return $plural;
-
-      default:
-        throw new Exception("Unknown language '{$this->language}'.");
+      } else {
+        return $this->locale->selectPluralVariant($variant, $translations);
+      }
     }
+
   }
 
   /**

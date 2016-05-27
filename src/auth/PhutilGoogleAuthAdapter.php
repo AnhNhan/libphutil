@@ -23,7 +23,7 @@ final class PhutilGoogleAuthAdapter extends PhutilOAuthAuthAdapter {
 
     throw new Exception(
       pht(
-        'Expected to retrieve an "account" email from Google Plus API call ',
+        'Expected to retrieve an "account" email from Google Plus API call '.
         'to identify account, but failed.'));
   }
 
@@ -40,11 +40,22 @@ final class PhutilGoogleAuthAdapter extends PhutilOAuthAuthAdapter {
   }
 
   public function getAccountImageURI() {
-    return $this->getOAuthAccountData('picture');
+    $image = $this->getOAuthAccountData('image', array());
+    $uri = idx($image, 'url');
+
+    // Change the "sz" parameter ("size") from the default to 100 to ask for
+    // a 100x100px image.
+    if ($uri !== null) {
+      $uri = new PhutilURI($uri);
+      $uri->setQueryParam('sz', 100);
+      $uri = (string)$uri;
+    }
+
+    return $uri;
   }
 
   public function getAccountURI() {
-    return 'https://plus.google.com/'.$this->getOAuthAccountData('id');
+    return $this->getOAuthAccountData('url');
   }
 
   public function getAccountRealName() {
@@ -105,14 +116,13 @@ final class PhutilGoogleAuthAdapter extends PhutilOAuthAuthAdapter {
       throw $status;
     }
 
-    $data = json_decode($body, true);
-    if (!is_array($data)) {
-      throw new Exception(
-        'Expected valid JSON response from Google account data request, '.
-        'got: '.$body);
+    try {
+      return phutil_json_decode($body);
+    } catch (PhutilJSONParserException $ex) {
+      throw new PhutilProxyException(
+        pht('Expected valid JSON response from Google account data request.'),
+        $ex);
     }
-
-    return $data;
   }
 
   private function tryToThrowSpecializedError($status, $raw_body) {
@@ -140,9 +150,9 @@ final class PhutilGoogleAuthAdapter extends PhutilOAuthAuthAdapter {
     if ($domain == 'usageLimits' && $reason == 'accessNotConfigured') {
       throw new PhutilAuthConfigurationException(
         pht(
-          'Google returned an "accessNotConfigured" error. This usually means '.
-          'you need to enable the "Google+ API" in your Google Cloud Console, '.
-          'under "APIs".'.
+          'Google returned an "%s" error. This usually means you need to '.
+          'enable the "Google+ API" in your Google Cloud Console, under '.
+          '"APIs".'.
           "\n\n".
           'Around March 2014, Google made some API changes which require this '.
           'configuration adjustment.'.
@@ -156,13 +166,14 @@ final class PhutilGoogleAuthAdapter extends PhutilOAuthAuthAdapter {
           '"Credentials". The Application ID this install is using is "%s".'.
           "\n\n".
           '(If you are unable to log into Phabricator, you can use '.
-          '"bin/auth recover" to recover access to an administrator '.
-          'account.)'.
+          '"%s" to recover access to an administrator account.)'.
           "\n\n".
           'Full HTTP Response'.
           "\n\n%s",
+          'accessNotConfigured',
           'https://console.developers.google.com/',
           $this->getClientID(),
+          'bin/auth recover',
           $raw_body));
     }
   }
